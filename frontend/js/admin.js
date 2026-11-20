@@ -1,7 +1,8 @@
 // frontend/js/admin.js
 
 const API = '';
-let ADMIN_KEY = null;
+const tg = window.Telegram?.WebApp;
+const TELEGRAM_INIT_DATA = tg?.initData || '';
 let RARITIES = {};
 let ANIME_LIST = [];
 let EDITING_CHAR = null;
@@ -22,25 +23,21 @@ function formatNum(n) {
 // AUTH
 // ============================================
 async function checkAuth() {
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get('key');
-
-    if (!key) {
+    if (!TELEGRAM_INIT_DATA) {
         document.getElementById('login-status').textContent =
-            '❌ Нет ключа доступа. Открой админ-панель через команду /admin в боте.';
+            '❌ Открой админ-панель из Telegram через команду /admin.';
         return false;
     }
 
     try {
         const r = await fetch(`${API}/api/admin/characters`, {
-            headers: {'X-Admin-Key': key}
+            headers: {'X-Telegram-Init-Data': TELEGRAM_INIT_DATA}
         });
         if (!r.ok) {
             document.getElementById('login-status').textContent =
-                r.status === 403 ? '❌ Неверный ключ доступа' : '❌ Ошибка проверки доступа';
+                r.status === 403 ? '❌ Нет прав администратора' : '❌ Ошибка проверки доступа';
             return false;
         }
-        ADMIN_KEY = key;
         return true;
     } catch(e) {
         document.getElementById('login-status').textContent = '❌ Ошибка: ' + e.message;
@@ -50,7 +47,7 @@ async function checkAuth() {
 
 function api(url, opts = {}) {
     opts.headers = opts.headers || {};
-    opts.headers['X-Admin-Key'] = ADMIN_KEY;
+    opts.headers['X-Telegram-Init-Data'] = TELEGRAM_INIT_DATA;
     if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(opts.body);
@@ -266,7 +263,7 @@ async function addGalleryImages() {
 
         const r = await fetch('/api/admin/upload', {
             method: 'POST',
-            headers: {'X-Admin-Key': ADMIN_KEY},
+            headers: {'X-Telegram-Init-Data': TELEGRAM_INIT_DATA},
             body: fd,
         });
         const d = await r.json();
@@ -316,7 +313,7 @@ async function uploadCharImage() {
     toast('⏳ Загрузка...');
     const r = await fetch('/api/admin/upload', {
         method: 'POST',
-        headers: {'X-Admin-Key': ADMIN_KEY},
+        headers: {'X-Telegram-Init-Data': TELEGRAM_INIT_DATA},
         body: fd,
     });
     const d = await r.json();
@@ -647,7 +644,7 @@ async function uploadSgImage() {
     toast('⏳ Загрузка...');
     const r = await fetch('/api/admin/upload', {
         method: 'POST',
-        headers: {'X-Admin-Key': ADMIN_KEY},
+        headers: {'X-Telegram-Init-Data': TELEGRAM_INIT_DATA},
         body: fd,
     });
     const d = await r.json();
@@ -770,7 +767,7 @@ async function importLoadTop() {
     toast('🏆 Загрузка топа...');
     try {
         const results = await fetch('/api/admin/import/top?count=20', {
-            headers: { 'X-Admin-Key': ADMIN_KEY }
+            headers: { 'X-Telegram-Init-Data': TELEGRAM_INIT_DATA }
         }).then(r => r.json());
         renderImportResults(results);
     } catch(e) {
