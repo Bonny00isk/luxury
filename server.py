@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+import asyncio, logging
 import shutil, uuid, hashlib, hmac, threading, queue, json, time
 
 from urllib.parse import parse_qsl
@@ -12,7 +13,7 @@ from datetime import datetime
 
 from database import get_session, RARITY_INFO, Character, Anime, User, UserCard, AdminLog, CharacterImage, sync_cover
 from database import init_db
-from seed import seed_if_empty
+from seed import seed_if_empty, enrich_missing_character_images
 from gacha import GachaService
 from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, WEBAPP_URL
 
@@ -25,10 +26,62 @@ from import_anilist import (
 app = FastAPI()
 
 @app.on_event("startup")
-def initialize_database_on_server_startup():
-    """Ensure schema exists even when Render starts Uvicorn directly."""
+async def initialize_database_on_server_startup():
+    """Initialize storage and start Telegram polling alongside the FastAPI service."""
     init_db()
     seed_if_empty()
+
+    # Seed records have no bundled artwork; enrich them from AniList in the background.
+    threading.Thread(
+        target=enrich_missing_character_images,
+        name="character-image-enrichment",
+        daemon=True,
+    ).start()
+
+    if BOT_TOKEN:
+        import bot as telegram_bot
+
+        task = asyncio.create_task(telegram_bot.dp.start_polling(telegram_bot.bot))
+        app.state.telegram_bot_module = telegram_bot
+        app.state.telegram_bot_task = task
+
+        def report_bot_failure(done_task):
+            try:
+                done_task.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logging.exception("Telegram polling stopped unexpectedly")
+
+        task.add_done_callback(report_bot_failure)
+        logging.info("Telegram polling task started with FastAPI")
+    else:
+        logging.error("BOT_TOKEN is missing; Telegram polling was not started")
+
+
+@app.on_event("shutdown")
+async def shutdown_telegram_polling():
+    telegram_bot = getattr(app.state, "telegram_bot_module", None)
+    task = getattr(app.state, "telegram_bot_task", None)
+    if telegram_bot is None:
+        return
+
+    try:
+        await telegram_bot.dp.stop_polling()
+    except RuntimeError:
+        pass
+
+    if task and not task.done():
+        try:
+            await asyncio.wait_for(task, timeout=10)
+        except asyncio.TimeoutError:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    await telegram_bot.bot.session.close()
 
 
 
