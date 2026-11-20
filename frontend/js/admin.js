@@ -3,6 +3,7 @@
 const API = '';
 const tg = window.Telegram?.WebApp;
 const TELEGRAM_INIT_DATA = tg?.initData || '';
+if (tg) tg.ready();
 let RARITIES = {};
 let ANIME_LIST = [];
 let EDITING_CHAR = null;
