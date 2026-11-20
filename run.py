@@ -17,10 +17,10 @@ def start_server():
 
 
 async def start_bot():
-    from bot import dp, bot
     if not BOT_TOKEN or not ADMIN_ID:
         print("❌ Не заданы BOT_TOKEN или ADMIN_ID. Проверь переменные окружения.")
         return
+    from bot import dp, bot
     print("🤖 Бот запускается...")
     try:
         me = await bot.get_me()
