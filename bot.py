@@ -1838,3 +1838,15 @@ async def on_startup(bot: Bot):
 
 
 dp.startup.register(on_startup)
+
+async def main():
+    logging.info("🚀 Запуск Anicard...")
+
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
