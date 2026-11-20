@@ -18,7 +18,7 @@ from gacha import GachaService
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=9196627754:AAF1EMbzbXkJJFgHdQVSv3TnM3Am8CGAjpQ)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 # Подключаем админку только если файл есть
