@@ -6,8 +6,8 @@
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
-tg.setHeaderColor('#0a0a1a');
-tg.setBackgroundColor('#0a0a1a');
+tg.setHeaderColor('#13090b');
+tg.setBackgroundColor('#13090b');
 
 const API = '';  // Тот же домен
 const TELEGRAM_INIT_DATA = tg.initData || '';
@@ -38,7 +38,7 @@ async function authFetch(url, options = {}) {
     return window.fetch(url, { ...options, headers });
 }
 
-let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
+let state = { coins: 0, cards: 0, pulls: 0, pity: 0, claimAvailableAt: 0 };
 
 // ============================================
 // LOAD USER
@@ -51,7 +51,9 @@ async function loadUser() {
         state.cards = d.total_cards;
         state.pulls = d.total_pulls;
         state.pity = d.pulls_since_pity;
+        state.claimAvailableAt = d.last_claim ? new Date(d.last_claim).getTime() + 2 * 60 * 60 * 1000 : 0;
         updateHeader();
+        updateClaimTimer();
     } catch(e) { console.error(e); }
 }
 
@@ -67,6 +69,23 @@ function formatNum(n) {
     if (abs >= 1e6) return sign + (abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
     if (abs >= 1e3) return sign + (abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K';
     return sign + abs.toString();
+}
+
+function updateClaimTimer() {
+    const btn = document.getElementById('btn-claim');
+    const timer = document.getElementById('claim-timer');
+    if (!btn || !timer) return;
+    const remaining = Math.max(0, Math.ceil((state.claimAvailableAt - Date.now()) / 1000));
+    if (remaining > 0) {
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = remaining % 60;
+        timer.textContent = 'ДОСТУПНО ЧЕРЕЗ ' + [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+        if (btn.dataset.busy !== '1') btn.disabled = true;
+    } else {
+        timer.textContent = 'ГОТОВО К СБОРУ';
+        if (btn.dataset.busy !== '1') btn.disabled = false;
+    }
 }
 
 function updateHeader() {
@@ -109,16 +128,21 @@ document.getElementById('btn-claim').addEventListener('click', async () => {
         const d = await r.json();
         if (d.success) {
             state.coins = d.coins;
+            state.claimAvailableAt = Date.now() + 2 * 60 * 60 * 1000;
             updateHeader();
+            updateClaimTimer();
             toast(d.message);
             haptic('success');
         } else {
+            if (d.remaining_seconds) state.claimAvailableAt = Date.now() + d.remaining_seconds * 1000;
             toast(d.message);
             haptic('warning');
+            updateClaimTimer();
         }
     } catch(e) { console.error(e); }
 
-    setTimeout(() => btn.disabled = false, 1000);
+    btn.dataset.busy = '1';
+    setTimeout(() => { btn.dataset.busy = ''; updateClaimTimer(); }, 1000);
 });
 
 // ============================================
@@ -166,7 +190,7 @@ document.getElementById('btn-pull1').addEventListener('click', async () => {
 });
 
 // ============================================
-// PULL x10
+// PULL x3
 // ============================================
 document.getElementById('btn-pull10').addEventListener('click', async () => {
     const btn = document.getElementById('btn-pull10');
@@ -241,7 +265,8 @@ function showCard(card) {
 
 document.getElementById('close-result').addEventListener('click', () => {
     document.getElementById('card-result').classList.add('hidden');
-    loadUser();  // Обновляем данные
+    loadUser();
+setInterval(updateClaimTimer, 1000);  // Обновляем данные
 });
 
 // ============================================
