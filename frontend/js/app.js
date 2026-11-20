@@ -10,12 +10,32 @@ tg.setHeaderColor('#0a0a1a');
 tg.setBackgroundColor('#0a0a1a');
 
 const API = '';  // Тот же домен
-let USER_ID = tg.initDataUnsafe?.user?.id;
+const TELEGRAM_INIT_DATA = tg.initData || '';
+const USER_ID = tg.initDataUnsafe?.user?.id;
 
-// Для тестирования без Telegram
-if (!USER_ID) {
-    USER_ID = 12345;
-    console.warn('⚠️ Тестовый режим, USER_ID =', USER_ID);
+if (!TELEGRAM_INIT_DATA || !USER_ID) {
+    document.body.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;background:#0a0a1a;color:#fff;font:16px Arial;text-align:center;padding:24px">Открой Anicard через Telegram, чтобы авторизоваться.</main>';
+    throw new Error('Telegram WebApp initData is unavailable');
+}
+
+function escapeHTML(value) {
+    const entities = {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'};
+    return String(value ?? '').replace(/[&<>"']/g, ch => entities[ch]);
+}
+
+function safeImageUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (raw.startsWith('/') && !raw.startsWith('//')) return escapeHTML(raw);
+    try {
+        const parsed = new URL(raw, window.location.origin);
+        return ['http:', 'https:'].includes(parsed.protocol) ? escapeHTML(raw) : '';
+    } catch (_) { return ''; }
+}
+
+async function authFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set('X-Telegram-Init-Data', TELEGRAM_INIT_DATA);
+    return window.fetch(url, { ...options, headers });
 }
 
 let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
@@ -25,7 +45,7 @@ let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
 // ============================================
 async function loadUser() {
     try {
-        const r = await fetch(`${API}/api/user/${USER_ID}`);
+        const r = await authFetch(`${API}/api/user/${USER_ID}`);
         const d = await r.json();
         state.coins = d.coins;
         state.cards = d.total_cards;
@@ -85,7 +105,7 @@ document.getElementById('btn-claim').addEventListener('click', async () => {
     btn.disabled = true;
 
     try {
-        const r = await fetch(`${API}/api/claim/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/claim/${USER_ID}`, {method:'POST'});
         const d = await r.json();
         if (d.success) {
             state.coins = d.coins;
@@ -113,7 +133,7 @@ document.getElementById('btn-pull1').addEventListener('click', async () => {
     orb.classList.add('spinning');
 
     try {
-        const r = await fetch(`${API}/api/pull/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/pull/${USER_ID}`, {method:'POST'});
         const d = await r.json();
 
         if (!d.success) {
@@ -156,7 +176,7 @@ document.getElementById('btn-pull10').addEventListener('click', async () => {
     orb.classList.add('spinning');
 
     try {
-        const r = await fetch(`${API}/api/pull10/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/pull10/${USER_ID}`, {method:'POST'});
         const d = await r.json();
 
         if (!d.success) {
@@ -191,10 +211,10 @@ function showCard(card) {
 
     const stars = '⭐'.repeat(card.stars);
     const imgContent = card.image_url
-        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.emoji}'">`
+        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.emoji)}'">`
         : card.emoji;
 
-    reveal.className = `card-reveal rarity-border-${card.rarity}`;
+    reveal.className = `card-reveal rarity-border-${escapeHTML(card.rarity)}`;
     reveal.innerHTML = `
         <div class="card-img-area">
             ${typeof imgContent === 'string' && imgContent.startsWith('<') ? imgContent : `<span>${imgContent}</span>`}
@@ -204,10 +224,10 @@ function showCard(card) {
             }
         </div>
         <div class="card-body">
-            <div class="card-name">${card.name}</div>
-            <div class="card-anime">📺 ${card.anime}</div>
+            <div class="card-name">${escapeHTML(card.name)}</div>
+            <div class="card-anime">📺 ${escapeHTML(card.anime)}</div>
             <div class="card-stars">${stars}</div>
-            <div class="card-rarity-label" style="color:${card.color}">${card.rarity_name}</div>
+            <div class="card-rarity-label" style="color:${escapeHTML(card.color)}">${escapeHTML(card.rarity_name)}</div>
             <div class="card-stats">
                 <span>⚔️${card.power}</span>
                 <span>🛡${card.defense}</span>
@@ -232,13 +252,13 @@ function showMulti(cards) {
     const grid = document.getElementById('multi-grid');
 
     grid.innerHTML = cards.map(card => `
-        <div class="mini-card rarity-border-${card.rarity}" style="border-width:2px">
+        <div class="mini-card rarity-border-${escapeHTML(card.rarity)}" style="border-width:2px">
             <div class="mini-card-img">
                 ${card.image_url
-                    ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.emoji}'">`
+                    ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.emoji)}'">`
                     : card.emoji}
             </div>
-            <div class="mini-card-name">${card.name}</div>
+            <div class="mini-card-name">${escapeHTML(card.name)}</div>
             <div class="mini-card-rarity">${'⭐'.repeat(card.stars)}</div>
             ${card.is_new ? '<span class="mini-new">NEW</span>' : ''}
         </div>
@@ -255,46 +275,9 @@ document.getElementById('close-multi').addEventListener('click', () => {
 // ============================================
 // COLLECTION
 // ============================================
-async function loadCollection(rarity = '') {
-    try {
-        let url = `${API}/api/collection/${USER_ID}?per_page=50`;
-        if (rarity) url += `&rarity=${rarity}`;
-        const r = await fetch(url);
-        const d = await r.json();
-
-        document.getElementById('progress-fill').style.width = d.completion + '%';
-        document.getElementById('progress-text').textContent =
-            `${d.total_collected}/${d.total_characters} (${d.completion}%)`;
-
-        const grid = document.getElementById('collection-grid');
-        if (d.cards.length === 0) {
-            grid.innerHTML = '<p style="text-align:center;color:var(--text2);grid-column:1/-1;padding:40px">Пока пусто 😢</p>';
-            return;
-        }
-
-        grid.innerHTML = d.cards.map(card => `
-            <div class="grid-card r-${card.rarity}" onclick="toggleFav(${card.character_id})">
-                <div class="grid-card-img">
-                    ${card.image_url
-                        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.rarity_info.emoji}'">`
-                        : card.rarity_info.emoji}
-                </div>
-                ${card.count > 1 ? `<span class="grid-card-count">x${card.count}</span>` : ''}
-                ${card.is_favorite ? '<span class="grid-card-fav">⭐</span>' : ''}
-                <div class="grid-card-info">
-                    <div class="grid-card-name">${card.name}</div>
-                    <div class="grid-card-sub">
-                        <span>${card.rarity_info.emoji} ${'⭐'.repeat(card.rarity_info.stars)}</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    } catch(e) { console.error(e); }
-}
-
 async function toggleFav(charId) {
     try {
-        await fetch(`${API}/api/favorite/${USER_ID}/${charId}`, {method: 'POST'});
+        await authFetch(`${API}/api/favorite/${USER_ID}/${charId}`, {method: 'POST'});
         haptic('success');
         toast('⭐ Карточка выбрана для профиля!');
         loadCollection();
@@ -308,33 +291,6 @@ document.getElementById('filter-rarity').addEventListener('change', e => {
 // ============================================
 // ALBUM
 // ============================================
-async function loadAlbum() {
-    try {
-        const [allR, collR] = await Promise.all([
-            fetch(`${API}/api/characters?per_page=200`),
-            fetch(`${API}/api/collection/${USER_ID}?per_page=999`),
-        ]);
-        const allD = await allR.json();
-        const collD = await collR.json();
-
-        const owned = new Set(collD.cards.map(c => c.character_id));
-
-        document.getElementById('album-grid').innerHTML = allD.characters.map(char => `
-            <div class="grid-card r-${char.rarity} ${owned.has(char.id) ? '' : 'not-owned'}">
-                <div class="grid-card-img" style="font-size:20px">
-                    ${char.rarity_info.emoji}
-                </div>
-                <div class="grid-card-info">
-                    <div class="grid-card-name" style="font-size:9px">
-                        ${owned.has(char.id) ? char.name : '???'}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-
-    } catch(e) { console.error(e); }
-}
-
 // ============================================
 // PROFILE
 // ============================================
@@ -349,7 +305,7 @@ async function loadProfile() {
 
     // Загружаем фон профиля
     try {
-        const r = await fetch(`${API}/api/user/${USER_ID}`);
+        const r = await authFetch(`${API}/api/user/${USER_ID}`);
         const d = await r.json();
 
         const bg = document.getElementById('profile-bg');
@@ -417,7 +373,7 @@ document.getElementById('sg-submit').addEventListener('click', async () => {
     }
 
     try {
-        const r = await fetch(`${API}/api/suggest/${USER_ID}`, {
+        const r = await authFetch(`${API}/api/suggest/${USER_ID}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data),
@@ -450,7 +406,7 @@ document.getElementById('sg-submit').addEventListener('click', async () => {
 
 async function loadMySuggestions() {
     try {
-        const r = await fetch(`${API}/api/suggestions/${USER_ID}`);
+        const r = await authFetch(`${API}/api/suggestions/${USER_ID}`);
         const items = await r.json();
 
         const list = document.getElementById('sg-list');
@@ -466,20 +422,20 @@ async function loadMySuggestions() {
         };
 
         list.innerHTML = items.map(s => `
-            <div class="sg-item ${s.status}">
+            <div class="sg-item ${escapeHTML(s.status)}">
                 <div class="sg-item-with-img">
                     ${s.image_url
-                        ? `<img src="${s.image_url}" class="sg-item-thumb">`
+                        ? `<img src="${safeImageUrl(s.image_url)}" class="sg-item-thumb">`
                         : '<div class="sg-item-thumb" style="display:flex;align-items:center;justify-content:center">🎴</div>'
                     }
                     <div class="sg-item-body">
                         <div class="sg-item-header">
-                            <span class="sg-item-name">${s.name_ru || s.name_en}</span>
-                            <span class="sg-status ${s.status}">${statusText[s.status]}</span>
+                            <span class="sg-item-name">${escapeHTML(s.name_ru || s.name_en)}</span>
+                            <span class="sg-status ${escapeHTML(s.status)}">${statusText[s.status]}</span>
                         </div>
-                        <div class="sg-item-anime">📺 ${s.anime_title}</div>
+                        <div class="sg-item-anime">📺 ${escapeHTML(s.anime_title)}</div>
                         ${s.admin_comment
-                            ? `<div class="sg-item-comment">💬 ${s.admin_comment}</div>`
+                            ? `<div class="sg-item-comment">💬 ${escapeHTML(s.admin_comment)}</div>`
                             : ''}
                     </div>
                 </div>
@@ -508,7 +464,7 @@ document.getElementById('sg-image-input').addEventListener('change', async (e) =
     fd.append('file', file);
 
     try {
-        const r = await fetch(`${API}/api/suggest/upload/${USER_ID}`, {
+        const r = await authFetch(`${API}/api/suggest/upload/${USER_ID}`, {
             method: 'POST',
             body: fd,
         });
@@ -554,7 +510,7 @@ async function openCardModal(characterId) {
     haptic('light');
 
     try {
-        const r = await fetch(`${API}/api/card/${USER_ID}/${characterId}`);
+        const r = await authFetch(`${API}/api/card/${USER_ID}/${characterId}`);
         const data = await r.json();
 
         CURRENT_CARD = data;
@@ -585,7 +541,7 @@ async function openCardModal(characterId) {
 
         // Редкость с цветом
         const rarityEl = document.getElementById('cm-rarity');
-        rarityEl.innerHTML = `<span class="rarity-name-${char.rarity}">${info.emoji} ${info.name}</span>`;
+        rarityEl.innerHTML = `<span class="rarity-name-${escapeHTML(char.rarity)}">${escapeHTML(info.emoji)} ${escapeHTML(info.name)}</span>`;
 
         // Статы
         document.getElementById('cm-stats').textContent =
@@ -701,7 +657,7 @@ async function toggleFavoriteBtn() {
     if (!CURRENT_CARD) return;
 
     try {
-        const r = await fetch(`${API}/api/favorite/${USER_ID}/${CURRENT_CARD.character.id}`, {
+        const r = await authFetch(`${API}/api/favorite/${USER_ID}/${CURRENT_CARD.character.id}`, {
             method: 'POST',
         });
         const d = await r.json();
@@ -736,7 +692,7 @@ async function dustCardBtn() {
     if (!confirm(`Распылить 1 копию за монеты?`)) return;
 
     try {
-        const r = await fetch(
+        const r = await authFetch(
             `${API}/api/card/${USER_ID}/${CURRENT_CARD.character.id}/dust`,
             { method: 'POST' }
         );
@@ -781,7 +737,7 @@ function shareCard() {
     // Через Telegram Share
     if (tg.openTelegramLink) {
         const encodedText = encodeURIComponent(shareText);
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(WEBAPP_URL || '')}&text=${encodedText}`);
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodedText}`);
     } else {
         // Fallback — копировать в буфер
         navigator.clipboard.writeText(shareText);
@@ -800,7 +756,7 @@ async function loadCollection(rarity = '') {
     try {
         let url = `${API}/api/collection/${USER_ID}?per_page=50`;
         if (rarity) url += `&rarity=${rarity}`;
-        const r = await fetch(url);
+        const r = await authFetch(url);
         const d = await r.json();
 
         document.getElementById('progress-fill').style.width = d.completion + '%';
@@ -814,18 +770,18 @@ async function loadCollection(rarity = '') {
         }
 
         grid.innerHTML = d.cards.map(card => `
-            <div class="grid-card r-${card.rarity}" onclick="openCardModal(${card.character_id})">
+            <div class="grid-card r-${escapeHTML(card.rarity)}" onclick="openCardModal(${card.character_id})">
                 <div class="grid-card-img">
                     ${card.image_url
-                        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.rarity_info.emoji}'">`
+                        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.rarity_info.emoji)}'">`
                         : card.rarity_info.emoji}
                 </div>
                 ${card.count > 1 ? `<span class="grid-card-count">x${card.count}</span>` : ''}
                 ${card.is_favorite ? '<span class="grid-card-fav">⭐</span>' : ''}
                 <div class="grid-card-info">
-                    <div class="grid-card-name">${card.name}</div>
+                    <div class="grid-card-name">${escapeHTML(card.name)}</div>
                     <div class="grid-card-sub">
-                        <span>${card.rarity_info.emoji} ${'⭐'.repeat(card.rarity_info.stars)}</span>
+                        <span>${escapeHTML(card.rarity_info.emoji)} ${'⭐'.repeat(card.rarity_info.stars)}</span>
                     </div>
                 </div>
             </div>
@@ -843,8 +799,8 @@ let ALBUM_OWNED = new Set();
 async function loadAlbum() {
     try {
         const [allR, collR] = await Promise.all([
-            fetch(`${API}/api/characters?per_page=200`),
-            fetch(`${API}/api/collection/${USER_ID}?per_page=999`),
+            authFetch(`${API}/api/characters?per_page=200`),
+            authFetch(`${API}/api/collection/${USER_ID}?per_page=999`),
         ]);
         const allD = await allR.json();
         const collD = await collR.json();
@@ -859,16 +815,16 @@ async function loadAlbum() {
 function renderAlbumGrid(chars) {
     const owned = ALBUM_OWNED;
     document.getElementById('album-grid').innerHTML = chars.map(char => `
-        <div class="grid-card r-${char.rarity} ${owned.has(char.id) ? '' : 'not-owned'}"
+        <div class="grid-card r-${escapeHTML(char.rarity)} ${owned.has(char.id) ? '' : 'not-owned'}"
              onclick="openCardModal(${char.id})">
             <div class="grid-card-img" style="font-size:20px">
                 ${owned.has(char.id) && char.image_url
-                    ? `<img src="${char.image_url}" onerror="this.parentElement.innerHTML='${char.rarity_info.emoji}'">`
+                    ? `<img src="${safeImageUrl(char.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(char.rarity_info.emoji)}'">`
                     : char.rarity_info.emoji}
             </div>
             <div class="grid-card-info">
                 <div class="grid-card-name" style="font-size:9px">
-                    ${owned.has(char.id) ? char.name : '???'}
+                    ${owned.has(char.id) ? escapeHTML(char.name) : '???'}
                 </div>
             </div>
         </div>

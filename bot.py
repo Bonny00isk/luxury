@@ -12,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from config import BOT_TOKEN, WEBAPP_URL, ADMIN_ID, ADMIN_KEY, DROP_INTERVAL_HOURS
+from config import BOT_TOKEN, WEBAPP_URL, ADMIN_ID, DROP_INTERVAL_HOURS
 from database import get_session, GroupChat, Drop
 from gacha import GachaService
 
@@ -20,6 +20,17 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+BOT_LOOP = None
+
+
+def submit_bot_notification(coro):
+    """Безопасно отправляет coroutine из потока FastAPI в event loop бота."""
+    loop = BOT_LOOP
+    if loop is None or not loop.is_running():
+        coro.close()
+        return False
+    asyncio.run_coroutine_threadsafe(coro, loop)
+    return True
 
 # Подключаем админку только если файл есть
 try:
@@ -1704,23 +1715,20 @@ async def admin_btn(callback: types.CallbackQuery):
 async def cmd_admin_link(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
-
-    if not ADMIN_KEY:
-        await message.answer("❌ Не задан ADMIN_KEY в .env. Настрой секретный ключ админки.")
+    if not WEBAPP_URL or not WEBAPP_URL.startswith("https://"):
+        await message.answer("❌ Веб-админка временно недоступна.")
         return
-    admin_url = f"{WEBAPP_URL.rstrip('/')}/admin?key={ADMIN_KEY}"
 
+    admin_url = f"{WEBAPP_URL.rstrip('/')}/admin"
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🌐 Открыть в браузере", url=admin_url))
     kb.row(InlineKeyboardButton(
-        text="📱 Открыть здесь",
+        text="📱 Открыть веб-админку",
         web_app=WebAppInfo(url=admin_url),
     ))
 
     await message.answer(
-        f"👑 <b>Админ-панель</b>\n\n"
-        f"🔗 Ссылка (не делись!):\n"
-        f"<code>{admin_url}</code>",
+        "👑 <b>Админ-панель</b>\n\n"
+        "Доступ подтверждается автоматически через Telegram.",
         reply_markup=kb.as_markup(),
         parse_mode="HTML",
     )
@@ -1766,7 +1774,8 @@ async def notify_admin_new_suggestion(user_name: str, char_name: str, anime: str
 
 async def on_startup(bot: Bot):
     """Инициализация при запуске бота"""
-    global BOT_USERNAME
+    global BOT_USERNAME, BOT_LOOP
+    BOT_LOOP = asyncio.get_running_loop()
 
     me = await bot.get_me()
     BOT_USERNAME = me.username

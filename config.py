@@ -5,14 +5,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "9196627754:AAF1EMbzbXkJJFgHdQVSv3TnM3Am8CGAjpQ").strip()
-ADMIN_ID = int(os.getenv("ADMIN_ID", "7694677506"))
-ADMIN_KEY = os.getenv("ADMIN_KEY", "luxury.bot.mlbb").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://luxury-8l4l.onrender.com").strip()
 
 SERVER_HOST = "0.0.0.0"
-SERVER_PORT = 8080
+SERVER_PORT = int(os.getenv("PORT", os.getenv("SERVER_PORT", "8080")))
 
 DATABASE_URL = "sqlite:///anime_cards.db"
 
