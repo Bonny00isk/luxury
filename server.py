@@ -15,7 +15,7 @@ from database import get_session, RARITY_INFO, Character, Anime, User, UserCard,
 from database import init_db
 from seed import seed_if_empty, enrich_missing_character_images
 from gacha import GachaService
-from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, WEBAPP_URL
+from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, WEBAPP_URL, TELEGRAM_WEBHOOK_SECRET
 
 from import_anilist import (
     search_anime as anilist_search,
@@ -27,11 +27,10 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def initialize_database_on_server_startup():
-    """Initialize storage and start Telegram polling alongside the FastAPI service."""
+    """Initialize storage, register Telegram webhook and background artwork sync."""
     init_db()
     seed_if_empty()
 
-    # Seed records have no bundled artwork; enrich them from AniList in the background.
     threading.Thread(
         target=enrich_missing_character_images,
         name="character-image-enrichment",
@@ -39,49 +38,58 @@ async def initialize_database_on_server_startup():
     ).start()
 
     if BOT_TOKEN:
+        if not TELEGRAM_WEBHOOK_SECRET:
+            raise RuntimeError("TELEGRAM_WEBHOOK_SECRET is required for secure Telegram webhook mode")
+
         import bot as telegram_bot
+        from aiogram.types import Update
 
-        task = asyncio.create_task(telegram_bot.dp.start_polling(telegram_bot.bot))
         app.state.telegram_bot_module = telegram_bot
-        app.state.telegram_bot_task = task
-
-        def report_bot_failure(done_task):
-            try:
-                done_task.result()
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                logging.exception("Telegram polling stopped unexpectedly")
-
-        task.add_done_callback(report_bot_failure)
-        logging.info("Telegram polling task started with FastAPI")
+        await telegram_bot.on_startup(telegram_bot.bot)
+        await telegram_bot.bot.set_webhook(
+            url=WEBAPP_URL.rstrip("/") + "/telegram/webhook",
+            secret_token=TELEGRAM_WEBHOOK_SECRET,
+            allowed_updates=telegram_bot.dp.resolve_used_update_types(),
+            drop_pending_updates=False,
+        )
+        logging.info("Telegram webhook registered at %s/telegram/webhook", WEBAPP_URL.rstrip("/"))
     else:
-        logging.error("BOT_TOKEN is missing; Telegram polling was not started")
+        logging.error("BOT_TOKEN is missing; Telegram webhook was not registered")
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str = Header(default=""),
+):
+    """Receive Telegram updates through a secret-validated webhook."""
+    telegram_bot = getattr(app.state, "telegram_bot_module", None)
+    if telegram_bot is None:
+        raise HTTPException(status_code=503, detail="Telegram bot is not initialized")
+
+    if not TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(
+        x_telegram_bot_api_secret_token,
+        TELEGRAM_WEBHOOK_SECRET,
+    ):
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+    try:
+        from aiogram.types import Update
+        payload = await request.json()
+        update = Update.model_validate(payload, context={"bot": telegram_bot.bot})
+        await telegram_bot.dp.feed_update(telegram_bot.bot, update)
+    except Exception:
+        logging.exception("Failed to process Telegram webhook update")
+        raise HTTPException(status_code=500, detail="Failed to process update")
+
+    return {"ok": True}
 
 
 @app.on_event("shutdown")
-async def shutdown_telegram_polling():
+async def shutdown_telegram_bot():
     telegram_bot = getattr(app.state, "telegram_bot_module", None)
-    task = getattr(app.state, "telegram_bot_task", None)
-    if telegram_bot is None:
-        return
-
-    try:
-        await telegram_bot.dp.stop_polling()
-    except RuntimeError:
-        pass
-
-    if task and not task.done():
-        try:
-            await asyncio.wait_for(task, timeout=10)
-        except asyncio.TimeoutError:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    await telegram_bot.bot.session.close()
+    if telegram_bot is not None:
+        await telegram_bot.bot.session.close()
 
 
 
