@@ -12,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from config import BOT_TOKEN, WEBAPP_URL, ADMIN_ID, ADMIN_KEY, DROP_INTERVAL_HOURS
+from config import BOT_TOKEN, WEBAPP_URL, ADMIN_ID, DROP_INTERVAL_HOURS
 from database import get_session, GroupChat, Drop
 from gacha import GachaService
 
