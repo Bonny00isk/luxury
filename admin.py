@@ -14,7 +14,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import ADMIN_ID, WEBAPP_URL, ADMIN_KEY
+from config import ADMIN_ID, WEBAPP_URL
 from database import (
     get_session, Character, Anime, User, UserCard,
     AdminLog, RARITY_INFO
@@ -110,10 +110,9 @@ async def admin_menu(message: Message):
     kb.row(InlineKeyboardButton(text="👥 Пользователи", callback_data="adm_users"))
     kb.row(InlineKeyboardButton(text="📊 Аниме-тайтлы", callback_data="adm_anime_list"))
     kb.row(InlineKeyboardButton(text="🗑 Удалить карточку", callback_data="adm_delete"))
-    if WEBAPP_URL.startswith("https://") and ADMIN_KEY:
-        admin_url = f"{WEBAPP_URL.rstrip('/')}/admin?key={ADMIN_KEY}"
-        kb.row(InlineKeyboardButton(text="🌐 Открыть веб-админку", url=admin_url))
-        kb.row(InlineKeyboardButton(text="📱 Открыть Mini App", web_app=WebAppInfo(url=admin_url)))
+    if WEBAPP_URL.startswith("https://"):
+        admin_url = f"{WEBAPP_URL.rstrip('/')}/admin"
+        kb.row(InlineKeyboardButton(text="📱 Открыть веб-админку", web_app=WebAppInfo(url=admin_url)))
 
     await message.answer(
         f"👑 **АДМИН-ПАНЕЛЬ**\n\n"
