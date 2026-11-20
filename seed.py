@@ -188,17 +188,11 @@ def enrich_missing_character_images():
         except Exception as exc:
             print(f"⚠️ Не удалось получить арты для {anime_row.title_en}: {exc}")
 
-    # Fallback: query individual character records for any names not found in the
-    # anime's popularity-sorted first page.
-    from import_anilist import api_query
-    character_query = """
-    query ($search: String) {
-      Character(search: $search) {
-        name { full native alternative }
-        image { large }
-      }
-    }
-    """
+    # Fallback: query Jikan for characters not included in AniList's
+    # popularity-sorted anime lists. The slow cadence respects its public rate limit.
+    import requests
+    import time
+
     db = get_session()
     try:
         missing_chars = db.query(Character.id, Character.name_en, Character.name_ru).filter(
@@ -209,16 +203,37 @@ def enrich_missing_character_images():
 
     for char_id, name_en, name_ru in missing_chars:
         try:
-            data = api_query(character_query, {"search": name_en})
-            node = (data or {}).get("Character") or {}
-            names = node.get("name") or {}
-            aliases = [names.get("full"), names.get("native")]
-            alternative = names.get("alternative") or []
-            aliases.extend(alternative if isinstance(alternative, list) else [alternative])
+            response = requests.get(
+                "https://api.jikan.moe/v4/characters",
+                params={"q": name_en, "limit": 5},
+                timeout=20,
+            )
+            if response.status_code == 429:
+                time.sleep(3)
+                response = requests.get(
+                    "https://api.jikan.moe/v4/characters",
+                    params={"q": name_en, "limit": 5},
+                    timeout=20,
+                )
+            response.raise_for_status()
+            candidates = response.json().get("data") or []
             wanted = normalize(name_en)
-            if not any(wanted and (wanted == normalize(alias) or wanted in normalize(alias)) for alias in aliases if alias):
+            match = None
+            for candidate in candidates:
+                aliases = [candidate.get("name"), candidate.get("name_kanji")]
+                aliases.extend(candidate.get("nicknames") or [])
+                if any(
+                    wanted and (wanted == normalize(alias) or wanted in normalize(alias))
+                    for alias in aliases if alias
+                ):
+                    match = candidate
+                    break
+            if not match:
                 continue
-            image = (node.get("image") or {}).get("large")
+
+            images = match.get("images") or {}
+            image = ((images.get("webp") or {}).get("image_url")
+                     or (images.get("jpg") or {}).get("image_url"))
             if not image or not image.startswith("https://"):
                 continue
 
@@ -238,5 +253,7 @@ def enrich_missing_character_images():
                 db.close()
         except Exception as exc:
             print(f"⚠️ Не удалось получить арт для {name_en}: {exc}")
+        finally:
+            time.sleep(1.2)
 
     print(f"🖼 AniList: добавлено изображений для {updated} карточек")
