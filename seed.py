@@ -99,3 +99,93 @@ def seed_if_empty():
     db.commit()
     db.close()
     print(f"✅ Загружено {total} персонажей!")
+
+def enrich_missing_character_images():
+    """Fill empty seed-card artwork using AniList's public character images."""
+    import re
+    from import_anilist import search_anime, get_anime_with_characters
+    from database import CharacterImage
+
+    def normalize(value):
+        return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+    db = get_session()
+    try:
+        anime_rows = db.query(Anime).all()
+        missing = db.query(Character).filter(
+            (Character.image_url.is_(None)) | (Character.image_url == "")
+        ).count()
+    finally:
+        db.close()
+
+    if not missing:
+        print("🖼 Все карточки уже имеют изображения")
+        return
+
+    print(f"🖼 Ищем изображения для карточек без арта: {missing}")
+    updated = 0
+
+    for anime_row in anime_rows:
+        try:
+            candidates = search_anime(anime_row.title_en, limit=5)
+            if not candidates:
+                continue
+
+            wanted = normalize(anime_row.title_en)
+            exact = []
+            for candidate in candidates:
+                title = candidate.get("title") or {}
+                names = [title.get("english"), title.get("romaji")]
+                if wanted in {normalize(name) for name in names if name}:
+                    exact.append(candidate)
+            if not exact:
+                print(f"⚠️ AniList: точное совпадение для {anime_row.title_en} не найдено")
+                continue
+            media = exact[0]
+
+            data = get_anime_with_characters(media["id"], chars_limit=50)
+            if not data:
+                continue
+
+            by_name = {}
+            for edge in (data.get("characters") or {}).get("edges") or []:
+                node = edge.get("node") or {}
+                names = node.get("name") or {}
+                aliases = [names.get("full"), names.get("native")]
+                alternative = names.get("alternative") or []
+                aliases.extend(alternative if isinstance(alternative, list) else [alternative])
+                image = (node.get("image") or {}).get("large")
+                if not image or not image.startswith("https://"):
+                    continue
+                for alias in aliases:
+                    key = normalize(alias)
+                    if key:
+                        by_name[key] = image
+
+            db = get_session()
+            try:
+                chars = db.query(Character).filter(
+                    Character.anime_id == anime_row.id,
+                    (Character.image_url.is_(None)) | (Character.image_url == ""),
+                ).all()
+                for char in chars:
+                    image = by_name.get(normalize(char.name_en)) or by_name.get(normalize(char.name_ru))
+                    if not image:
+                        continue
+                    char.image_url = image
+                    if not db.query(CharacterImage).filter(
+                        CharacterImage.character_id == char.id
+                    ).first():
+                        db.add(CharacterImage(
+                            character_id=char.id,
+                            url=image,
+                            position=0,
+                        ))
+                    updated += 1
+                db.commit()
+            finally:
+                db.close()
+        except Exception as exc:
+            print(f"⚠️ Не удалось получить арты для {anime_row.title_en}: {exc}")
+
+    print(f"🖼 AniList: добавлено изображений для {updated} карточек")

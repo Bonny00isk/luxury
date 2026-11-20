@@ -6,12 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Аниме Карточки</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/static/CSS/style.css?v=5">
+    <link rel="stylesheet" href="/static/CSS/style.css?v=6">
 </head>
 <body>
     <div id="app">
         <!-- HEADER -->
         <header class="header">
+            <div class="brand-mark">
+                <span class="brand-symbol">血</span>
+                <span class="brand-copy"><strong>ANICARD</strong><small>DEVIL HUNTER DIVISION</small></span>
+            </div>
             <div class="balance" id="balance-display">
                 <span class="coin-icon">💰</span>
                 <span id="coins">0</span>
@@ -34,6 +38,11 @@
         <!-- ============ ГАЧА ============ -->
         <section id="page-gacha" class="page active">
             <div class="gacha-area">
+                <div class="section-heading">
+                    <span class="section-kicker">PUBLIC SAFETY · SPECIAL DIVISION</span>
+                    <h1>DEVIL CONTRACT</h1>
+                    <p>Заключи контракт. Получи свою карту.</p>
+                </div>
 
                 <!-- Машина гачи -->
                 <div class="gacha-machine" id="gacha-machine">
@@ -50,9 +59,9 @@
                     <button class="btn btn-close" id="close-result">Закрыть</button>
                 </div>
 
-                <!-- Результат x10 -->
+                <!-- Результат x3 -->
                 <div id="multi-result" class="multi-overlay hidden">
-                    <h3>✨ Результаты x10</h3>
+                    <h3>✨ Результаты x3</h3>
                     <div id="multi-grid" class="multi-grid"></div>
                     <button class="btn btn-close" id="close-multi">Закрыть</button>
                 </div>
@@ -336,6 +345,6 @@
         </div>
     </div>
 
-    <script src="/static/js/app.js?v=5"></script>
+    <script src="/static/js/app.js?v=6"></script>
 </body>
 </html>

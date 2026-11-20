@@ -387,7 +387,7 @@ async def cmd_start(message: types.Message):
     if is_private:
         # Callback-кнопки работают только в ЛС нормально
         kb.row(
-            InlineKeyboardButton(text="💰 Забрать (6ч)", callback_data="claim"),
+            InlineKeyboardButton(text="💰 Забрать (2ч)", callback_data="claim"),
         )
         kb.row(
             InlineKeyboardButton(text="🎰 x1 (300💰)", callback_data="pull1"),
@@ -403,7 +403,7 @@ async def cmd_start(message: types.Message):
     await message.answer(
         "🎴 <b>Аниме Карточки</b>\n\n"
         "Собирай карточки любимых персонажей!\n\n"
-        "💰 Обычный сбор — каждые 6 часов\n"
+        "💰 Обычный сбор — каждые 2 часа\n"
         "🎰 Крути гачу и собирай!\n\n"
         + ("Выбери действие 👇" if is_private else "Нажми чтобы играть 👇"),
         reply_markup=kb.as_markup(),
@@ -728,7 +728,7 @@ async def cmd_myid(message: types.Message):
 
 @dp.message(Command("бонус", "bonus", "claim"))
 async def cmd_claim(message: types.Message):
-    """Быстрый сбор монет (каждые 6 часов)"""
+    """Быстрый сбор монет (каждые 2 часа)"""
     db = get_session()
     try:
         gacha = GachaService(db)
@@ -740,7 +740,7 @@ async def cmd_claim(message: types.Message):
         await message.answer(
             f"💰 <b>+{result['claimed']} монет!</b>\n\n"
             f"💼 Баланс: <b>{result['coins']}</b>\n"
-            f"⏰ Следующий сбор через 6 часов",
+            f"⏰ Следующий сбор через 2 часа",
             parse_mode="HTML",
         )
     else:
@@ -797,7 +797,7 @@ async def pull1_callback(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🎰 Ещё x1", callback_data="pull1"),
-        InlineKeyboardButton(text="🎰 x10", callback_data="pull10"),
+        InlineKeyboardButton(text="🎰 x3", callback_data="pull10"),
     )
 
     await callback.message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
@@ -894,7 +894,7 @@ async def cmd_help(message: types.Message):
 
         "🎴 <b>Основные:</b>\n"
         "/start — главное меню\n"
-        "/bonus или /бонус — забрать монеты (6ч)\n"
+        "/bonus или /бонус — забрать монеты (2ч)\n"
         "/pull или /крутить — крутка x1 (300💰)\n"
         "/pull3 или /крутить3 — крутка x3 (810💰)\n\n"
 
@@ -1001,7 +1001,7 @@ async def search_start_callback(callback: types.CallbackQuery, state: FSMContext
 
 @dp.message(Command("бонус", "bonus", "claim"))
 async def cmd_claim(message: types.Message):
-    """Быстрый сбор монет (каждые 6 часов)"""
+    """Быстрый сбор монет (каждые 2 часа)"""
     db = get_session()
     try:
         gacha = GachaService(db)
@@ -1013,7 +1013,7 @@ async def cmd_claim(message: types.Message):
         await message.answer(
             f"💰 <b>+{result['claimed']} монет!</b>\n\n"
             f"💼 Баланс: <b>{result['coins']}</b>\n"
-            f"⏰ Следующий сбор через 6 часов",
+            f"⏰ Следующий сбор через 2 часа",
             parse_mode="HTML",
         )
     else:
@@ -1680,7 +1680,7 @@ async def cmd_help(message: types.Message):
         "ℹ️ <b>Команды бота</b>\n\n"
         "🎴 <b>Основные:</b>\n"
         "/start — главное меню\n"
-        "/бонус — забрать монеты (раз в 6ч)\n"
+        "/бонус — забрать монеты (раз в 2ч)\n"
         "/крутить — крутка x1 (300💰)\n"
         "/крутить3 — крутка x3 (810💰)\n\n"
         "🎴 <b>Коллекция:</b>\n"
@@ -1694,7 +1694,7 @@ async def cmd_help(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         text += (
             "\n👑 <b>Админ:</b>\n"
-            "/admin — админ-панель\n"
+            "/admin или /admins — админ-панель\n"
         )
 
     await message.answer(text, parse_mode="HTML")
@@ -1809,7 +1809,7 @@ async def on_startup(bot: Bot):
     # но в меню Telegram их нельзя.
     commands = [
         BotCommand(command="start",      description="🎴 Главное меню"),
-        BotCommand(command="bonus",      description="💰 Забрать монеты (6ч)"),
+        BotCommand(command="bonus",      description="💰 Забрать монеты (2ч)"),
         BotCommand(command="pull",       description="🎰 Крутка x1 (300💰)"),
         BotCommand(command="pull3",      description="🎰 Крутка x3 (810💰)"),
         BotCommand(command="collection", description="🎴 Моя коллекция"),
@@ -1831,6 +1831,7 @@ async def on_startup(bot: Bot):
         # Дополнительно для админа
         admin_commands = commands + [
             BotCommand(command="admin", description="👑 Админ-панель"),
+            BotCommand(command="admins", description="👑 Админ-панель"),
         ]
         await bot.set_my_commands(
             admin_commands,
