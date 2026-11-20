@@ -265,8 +265,7 @@ function showCard(card) {
 
 document.getElementById('close-result').addEventListener('click', () => {
     document.getElementById('card-result').classList.add('hidden');
-    loadUser();
-setInterval(updateClaimTimer, 1000);  // Обновляем данные
+    loadUser();  // Обновляем данные
 });
 
 // ============================================
@@ -295,6 +294,7 @@ function showMulti(cards) {
 document.getElementById('close-multi').addEventListener('click', () => {
     document.getElementById('multi-result').classList.add('hidden');
     loadUser();
+setInterval(updateClaimTimer, 1000);
 });
 
 // ============================================
