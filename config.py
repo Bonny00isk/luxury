@@ -15,13 +15,13 @@ SERVER_PORT = int(os.getenv("PORT", os.getenv("SERVER_PORT", "8080")))
 
 DATABASE_URL = "sqlite:///anime_cards.db"
 
-CLAIM_INTERVAL_HOURS = 6
+CLAIM_INTERVAL_HOURS = 2
 CLAIM_AMOUNT = 150
 
 DROP_INTERVAL_HOURS = 4  # раз во сколько часов в группах скидывается дроп
 
-SINGLE_PULL_COST = 100
-MULTI_PULL_COST = 270
+SINGLE_PULL_COST = 300
+MULTI_PULL_COST = 810
 MULTI_PULL_COUNT = 3
 
 SOFT_PITY = 50
