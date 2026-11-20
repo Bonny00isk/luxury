@@ -294,7 +294,6 @@ function showMulti(cards) {
 document.getElementById('close-multi').addEventListener('click', () => {
     document.getElementById('multi-result').classList.add('hidden');
     loadUser();
-setInterval(updateClaimTimer, 1000);
 });
 
 // ============================================
@@ -874,3 +873,4 @@ document.getElementById('album-search').addEventListener('input', e => {
 // START
 // ============================================
 loadUser();
+setInterval(updateClaimTimer, 1000);
