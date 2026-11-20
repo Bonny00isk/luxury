@@ -24,7 +24,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[WEBAPP_URL] if WEBAPP_URL else [],
+    allow_origins=[WEBAPP_URL.rstrip("/")] if WEBAPP_URL else [],
     allow_methods=["*"],
     allow_headers=["*"],
 )
