@@ -136,7 +136,7 @@ def enrich_missing_character_images():
             for candidate in candidates:
                 title = candidate.get("title") or {}
                 names = [title.get("english"), title.get("romaji")]
-                if wanted in {normalize(name) for name in names if name}:
+                if any(wanted and (wanted in normalize(name) or normalize(name) in wanted) for name in names if name):
                     exact.append(candidate)
             if not exact:
                 print(f"⚠️ AniList: точное совпадение для {anime_row.title_en} не найдено")
@@ -187,5 +187,56 @@ def enrich_missing_character_images():
                 db.close()
         except Exception as exc:
             print(f"⚠️ Не удалось получить арты для {anime_row.title_en}: {exc}")
+
+    # Fallback: query individual character records for any names not found in the
+    # anime's popularity-sorted first page.
+    from import_anilist import api_query
+    character_query = """
+    query ($search: String) {
+      Character(search: $search) {
+        name { full native alternative }
+        image { large }
+      }
+    }
+    """
+    db = get_session()
+    try:
+        missing_chars = db.query(Character.id, Character.name_en, Character.name_ru).filter(
+            (Character.image_url.is_(None)) | (Character.image_url == "")
+        ).all()
+    finally:
+        db.close()
+
+    for char_id, name_en, name_ru in missing_chars:
+        try:
+            data = api_query(character_query, {"search": name_en})
+            node = (data or {}).get("Character") or {}
+            names = node.get("name") or {}
+            aliases = [names.get("full"), names.get("native")]
+            alternative = names.get("alternative") or []
+            aliases.extend(alternative if isinstance(alternative, list) else [alternative])
+            wanted = normalize(name_en)
+            if not any(wanted and (wanted == normalize(alias) or wanted in normalize(alias)) for alias in aliases if alias):
+                continue
+            image = (node.get("image") or {}).get("large")
+            if not image or not image.startswith("https://"):
+                continue
+
+            db = get_session()
+            try:
+                char = db.query(Character).filter(Character.id == char_id).first()
+                if not char or char.image_url:
+                    continue
+                char.image_url = image
+                if not db.query(CharacterImage).filter(
+                    CharacterImage.character_id == char.id
+                ).first():
+                    db.add(CharacterImage(character_id=char.id, url=image, position=0))
+                db.commit()
+                updated += 1
+            finally:
+                db.close()
+        except Exception as exc:
+            print(f"⚠️ Не удалось получить арт для {name_en}: {exc}")
 
     print(f"🖼 AniList: добавлено изображений для {updated} карточек")
