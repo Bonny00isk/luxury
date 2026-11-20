@@ -8,6 +8,24 @@ let RARITIES = {};
 let ANIME_LIST = [];
 let EDITING_CHAR = null;
 
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[ch]));
+}
+
+function safeImageUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (raw.startsWith('/') && !raw.startsWith('//')) return escapeHTML(raw);
+    try {
+        const parsed = new URL(raw, window.location.origin);
+        return ['http:', 'https:'].includes(parsed.protocol) ? escapeHTML(raw) : '';
+    } catch (_) { return ''; }
+}
+
+function safeColor(value) {
+    const color = String(value ?? '');
+    return /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#888888';
+}
+
 function formatNum(n) {
     if (n === null || n === undefined) return '0';
     n = Number(n);
@@ -112,7 +130,7 @@ function fillRaritySelects() {
     const modalSel = document.getElementById('char-rarity');
     for (const key in RARITIES) {
         const info = RARITIES[key];
-        const opt = `<option value="${key}">${info.emoji} ${info.name}</option>`;
+        const opt = `<option value="${escapeHTML(key)}">${escapeHTML(info.emoji)} ${escapeHTML(info.name)}</option>`;
         select.innerHTML += opt;
         modalSel.innerHTML += opt;
     }
@@ -140,17 +158,17 @@ async function loadChars() {
         <tr>
             <td>${c.id}</td>
             <td>${c.image_url
-                ? `<img src="${c.image_url}" class="table-img">`
-                : `<div class="table-img" style="display:flex;align-items:center;justify-content:center">${c.rarity_info.emoji}</div>`
+                ? `<img src="${safeImageUrl(c.image_url)}" class="table-img">`
+                : `<div class="table-img" style="display:flex;align-items:center;justify-content:center">${escapeHTML(c.rarity_info.emoji)}</div>`
             }</td>
             <td>
-                <b>${c.name_ru || c.name_en}</b><br>
-                <small style="color:var(--text2)">${c.name_en}</small>
+                <b>${escapeHTML(c.name_ru || c.name_en)}</b><br>
+                <small style="color:var(--text2)">${escapeHTML(c.name_en)}</small>
             </td>
-            <td>${c.anime_title}</td>
+            <td>${escapeHTML(c.anime_title)}</td>
             <td>
-                <span class="rarity-badge" style="background:${c.rarity_info.color}22;color:${c.rarity_info.color}">
-                    ${c.rarity_info.emoji} ${c.rarity_info.name}
+                <span class="rarity-badge" style="background:${safeColor(c.rarity_info.color)}22;color:${safeColor(c.rarity_info.color)}">
+                    ${escapeHTML(c.rarity_info.emoji)} ${escapeHTML(c.rarity_info.name)}
                 </span>
             </td>
             <td class="stats-inline">⚔${c.power} 🛡${c.defense} 💨${c.speed}</td>
@@ -247,7 +265,7 @@ function renderGallery() {
     const box = document.getElementById('char-gallery');
     box.innerHTML = GALLERY_IMAGES.map((img, idx) => `
         <div class="char-gallery-item">
-            <img src="${img.url}">
+            <img src="${safeImageUrl(img.url)}">
             <button type="button" class="char-gallery-remove" onclick="removeGalleryImage(${idx})">✕</button>
         </div>
     `).join('');
@@ -398,9 +416,9 @@ async function loadAnime() {
     document.getElementById('anime-tbody').innerHTML = list.map(a => `
         <tr>
             <td>${a.id}</td>
-            <td>${a.title_en}</td>
-            <td>${a.title_ru || '—'}</td>
-            <td>${a.genre || '—'}</td>
+            <td>${escapeHTML(a.title_en)}</td>
+            <td>${escapeHTML(a.title_ru || '—')}</td>
+            <td>${escapeHTML(a.genre || '—')}</td>
             <td>${a.chars_count}</td>
         </tr>
     `).join('');
@@ -451,9 +469,9 @@ async function loadUsers() {
     }
 
     document.getElementById('users-tbody').innerHTML = users.map(u => {
-        const name = u.first_name || '<span style="color:var(--text2)">—</span>';
+        const name = u.first_name ? escapeHTML(u.first_name) : '<span style="color:var(--text2)">—</span>';
         const uname = u.username
-            ? `<a href="https://t.me/${u.username}" target="_blank" style="color:var(--accent)">@${u.username}</a>`
+            ? `<a href="https://t.me/${encodeURIComponent(u.username)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">@${escapeHTML(u.username)}</a>`
             : '<span style="color:var(--text2)">—</span>';
 
         return `
@@ -534,8 +552,8 @@ async function loadLogs() {
     document.getElementById('logs-tbody').innerHTML = logs.map(l => `
         <tr>
             <td style="font-size:11px">${new Date(l.created_at).toLocaleString('ru')}</td>
-            <td><b>${l.action}</b></td>
-            <td>${l.details || '—'}</td>
+            <td><b>${escapeHTML(l.action)}</b></td>
+            <td>${escapeHTML(l.details || '—')}</td>
             <td>${l.target_user_id || '—'}</td>
         </tr>
     `).join('');
@@ -557,28 +575,28 @@ async function loadSuggestions() {
     }
 
     list.innerHTML = items.map(s => `
-        <div class="sg-admin-item ${s.status}" onclick='openSgModal(${JSON.stringify(s).replace(/'/g, "&#39;")})'>
+        <div class="sg-admin-item ${escapeHTML(s.status)}" onclick='openSgModal(${JSON.stringify(s).replace(/'/g, "&#39;")})'>
             <div style="display:flex;gap:12px;align-items:flex-start">
                 ${s.image_url
-                    ? `<img src="${s.image_url}" style="width:60px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">`
-                    : `<div style="width:60px;height:80px;background:var(--bg3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${s.rarity_info.emoji}</div>`
+                    ? `<img src="${safeImageUrl(s.image_url)}" style="width:60px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">`
+                    : `<div style="width:60px;height:80px;background:var(--bg3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${escapeHTML(s.rarity_info.emoji)}</div>`
                 }
                 <div style="flex:1;min-width:0">
                     <div class="sg-admin-header">
                         <div>
-                            <div class="sg-admin-title">${s.rarity_info.emoji} ${s.name_ru || s.name_en}</div>
-                            <div class="sg-admin-user">👤 ${s.user_name || 'ID:' + s.user_id}</div>
+                            <div class="sg-admin-title">${escapeHTML(s.rarity_info.emoji)} ${escapeHTML(s.name_ru || s.name_en)}</div>
+                            <div class="sg-admin-user">👤 ${escapeHTML(s.user_name || 'ID:' + s.user_id)}</div>
                         </div>
-                        <span class="sg-status ${s.status}" style="padding:4px 10px;border-radius:6px;font-size:11px">
+                        <span class="sg-status ${escapeHTML(s.status)}" style="padding:4px 10px;border-radius:6px;font-size:11px">
                             ${s.status === 'pending' ? '⏳' : s.status === 'approved' ? '✅' : '❌'}
                         </span>
                     </div>
                     <div class="sg-admin-meta">
-                        📺 ${s.anime_title} | ⚔${s.power} 🛡${s.defense} 💨${s.speed}
+                        📺 ${escapeHTML(s.anime_title)} | ⚔${s.power} 🛡${s.defense} 💨${s.speed}
                         ${s.image_url ? ' | 🖼 <b style="color:var(--green)">Есть картинка</b>' : ''}
                     </div>
-                    ${s.description ? `<div class="sg-admin-desc">${s.description}</div>` : ''}
-                    ${s.admin_comment ? `<div class="sg-admin-desc">💬 ${s.admin_comment}</div>` : ''}
+                    ${s.description ? `<div class="sg-admin-desc">${escapeHTML(s.description)}</div>` : ''}
+                    ${s.admin_comment ? `<div class="sg-admin-desc">💬 ${escapeHTML(s.admin_comment)}</div>` : ''}
                 </div>
             </div>
         </div>
@@ -590,11 +608,11 @@ function openSgModal(s) {
     CURRENT_SG = s;
 
     document.getElementById('sg-modal-info').innerHTML = `
-        <p><b>👤 Автор:</b> ${s.user_name || 'ID:' + s.user_id} (<code>${s.user_id}</code>)</p>
+        <p><b>👤 Автор:</b> ${escapeHTML(s.user_name || 'ID:' + s.user_id)} (<code>${s.user_id}</code>)</p>
         <p><b>📅 Дата:</b> ${new Date(s.created_at).toLocaleString('ru')}</p>
         ${s.image_url
             ? `<p style="margin-top:8px"><b>🖼 Предложенная картинка:</b></p>
-               <img src="${s.image_url}" style="max-width:200px;border-radius:8px;margin-top:4px">`
+               <img src="${safeImageUrl(s.image_url)}" style="max-width:200px;border-radius:8px;margin-top:4px">`
             : `<p style="color:var(--text2);margin-top:8px"><i>Без картинки</i></p>`
         }
     `;
@@ -623,7 +641,7 @@ function openSgModal(s) {
     raritySel.innerHTML = '';
     for (const key in RARITIES) {
         const info = RARITIES[key];
-        raritySel.innerHTML += `<option value="${key}" ${key === s.rarity_suggested ? 'selected' : ''}>${info.emoji} ${info.name}</option>`;
+        raritySel.innerHTML += `<option value="${escapeHTML(key)}" ${key === s.rarity_suggested ? 'selected' : ''}>${escapeHTML(info.emoji)} ${escapeHTML(info.name)}</option>`;
     }
 
     document.getElementById('sg-modal').classList.remove('hidden');
@@ -814,14 +832,14 @@ function renderImportResults(results) {
             <div class="import-anime-card ${isSelected ? 'selected' : ''} ${isImported ? 'imported' : ''}"
                  onclick="toggleAnimeFromData('${dataAttr}')">
                 <div style="position:relative">
-                    <img src="${anime.cover || ''}" class="import-anime-cover"
+                    <img src="${safeImageUrl(anime.cover)}" class="import-anime-cover"
                          onerror="this.style.background='var(--bg3)';this.src=''">
                     ${isImported ? '<div class="imported-badge">✓ В БД</div>' : ''}
                     ${charBadge ? `<div class="char-count-badge">${charBadge} ${anime.char_count}</div>` : ''}
                 </div>
                 <div class="import-anime-info">
-                    <div class="import-anime-title" title="${anime.title_en}">
-                        ${anime.title_en}
+                    <div class="import-anime-title" title="${escapeHTML(anime.title_en)}">
+                        ${escapeHTML(anime.title_en)}
                     </div>
                     <div class="import-anime-meta">
                         <span>${formatIcon} ${anime.year || '?'}</span>
@@ -873,7 +891,7 @@ function updateSelectedList() {
     }
 
     container.innerHTML = Array.from(SELECTED_ANIME.entries()).map(([id, data]) => `
-        <span class="selected-item" onclick="removeSelected(${id})">${data.title}</span>
+        <span class="selected-item" onclick="removeSelected(${id})">${escapeHTML(data.title)}</span>
     `).join('');
 }
 
