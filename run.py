@@ -34,6 +34,10 @@ async def start_bot():
 
 
 def main():
+    if not BOT_TOKEN or not ADMIN_ID:
+        print("❌ Не заданы BOT_TOKEN или ADMIN_ID. Проверь переменные окружения Render.")
+        return
+
     print("=" * 50)
     print("🚀 Запуск Anime Cards Bot")
     print("=" * 50)
