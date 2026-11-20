@@ -1001,7 +1001,7 @@ async def search_start_callback(callback: types.CallbackQuery, state: FSMContext
 
 @dp.message(Command("бонус", "bonus", "claim"))
 async def cmd_claim(message: types.Message):
-    """Быстрый сбор монет (каждые 6 часов)"""
+    """Быстрый сбор монет (каждые 2 часа)"""
     db = get_session()
     try:
         gacha = GachaService(db)
@@ -1013,7 +1013,7 @@ async def cmd_claim(message: types.Message):
         await message.answer(
             f"💰 <b>+{result['claimed']} монет!</b>\n\n"
             f"💼 Баланс: <b>{result['coins']}</b>\n"
-            f"⏰ Следующий сбор через 6 часов",
+            f"⏰ Следующий сбор через 2 часа",
             parse_mode="HTML",
         )
     else:
@@ -1694,7 +1694,7 @@ async def cmd_help(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         text += (
             "\n👑 <b>Админ:</b>\n"
-            "/admin — админ-панель\n"
+            "/admin или /admins — админ-панель\n"
         )
 
     await message.answer(text, parse_mode="HTML")
@@ -1831,6 +1831,7 @@ async def on_startup(bot: Bot):
         # Дополнительно для админа
         admin_commands = commands + [
             BotCommand(command="admin", description="👑 Админ-панель"),
+            BotCommand(command="admins", description="👑 Админ-панель"),
         ]
         await bot.set_my_commands(
             admin_commands,
