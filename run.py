@@ -4,7 +4,7 @@ import threading
 import uvicorn
 from database import init_db
 from seed import seed_if_empty
-from config import SERVER_HOST, SERVER_PORT, BOT_TOKEN, ADMIN_KEY
+from config import SERVER_HOST, SERVER_PORT, BOT_TOKEN, ADMIN_ID
 
 
 def start_server():
@@ -18,11 +18,8 @@ def start_server():
 
 async def start_bot():
     from bot import dp, bot
-    if not BOT_TOKEN:
-        print("❌ Не задан BOT_TOKEN. Заполни .env.")
-        return
-    if not ADMIN_KEY:
-        print("❌ Не задан ADMIN_KEY. Заполни .env.")
+    if not BOT_TOKEN or not ADMIN_ID:
+        print("❌ Не заданы BOT_TOKEN или ADMIN_ID. Проверь переменные окружения.")
         return
     print("🤖 Бот запускается...")
     try:
