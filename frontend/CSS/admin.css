@@ -648,3 +648,34 @@ body {
     font-size: 10px;
     font-weight: 600;
 }
+
+
+/* ANICARD DEVIL HUNTER ADMIN THEME */
+:root { --bg:#100b0d; --bg2:#1b1115; --bg3:#2a171d; --text:#f4ece5; --text2:#b7a5a0; --accent:#e23b3f; --green:#8ebc8d; --red:#ed4545; --gold:#e8bd75; --border:rgba(255,235,225,.1); }
+html,body { background:#100b0d; color:var(--text); }
+body { background:radial-gradient(ellipse at 50% -10%,rgba(177,38,45,.2),transparent 55%),linear-gradient(160deg,#100b0d,#1a1114 55%,#0e0a0b); }
+.admin-header,.admin-tabs { background:rgba(24,14,18,.96); border-color:rgba(226,59,63,.25); backdrop-filter:blur(14px); }
+.admin-header h1 { letter-spacing:.1em; text-transform:uppercase; color:#fff0e7; font-weight:950; }
+.admin-tabs .tab { border-radius:4px; letter-spacing:.04em; }
+.admin-tabs .tab.active { background:linear-gradient(135deg,#d9343b,#8e2029); }
+.page.active { color:var(--text); }
+.toolbar input,.toolbar select,.form-grid input,.form-grid select,.form-grid textarea,.form-box input { background:#211519; color:#f4ece5; border:1px solid rgba(255,130,110,.2); border-radius:5px; }
+.admin-table,.form-box,.import-search,.import-settings,.import-selected,.import-progress,.modal-content { background:#1b1115; color:var(--text); border:1px solid var(--border); border-radius:7px; }
+.admin-table th { background:#2a171d; color:#d9bdb4; }
+.admin-table td { border-color:var(--border); }
+.admin-table tr:hover td { background:rgba(226,59,63,.07); }
+.btn { border-radius:4px; text-transform:uppercase; letter-spacing:.04em; }
+.btn-primary { background:linear-gradient(135deg,#d9343b,#8e2029); }
+.btn-secondary,.btn-icon { background:#392127; color:#f4ece5; }
+.btn-success { background:#376347; }
+.btn-danger { background:#a92d35; }
+.modal { background:rgba(5,3,4,.88); backdrop-filter:blur(9px); }
+.modal-content { box-shadow:0 20px 70px rgba(0,0,0,.55); }
+.modal-header,.modal-footer { background:#1b1115; border-color:var(--border); }
+.rarity-badge { border-radius:3px; }
+.import-anime-card,.sg-admin-item { background:#211519; border-color:var(--border); }
+.import-anime-card.selected { border-color:#e23b3f; background:rgba(226,59,63,.12); }
+.import-anime-card:hover,.sg-admin-item:hover { background:#2a171d; }
+.import-log { background:#090708; color:#9de0a1; }
+.toast { border-radius:4px; }
+@media(max-width:700px) { .admin-header { padding:11px 12px; } .admin-tabs { top:48px; } .admin-tabs .tab { padding:9px 11px; } }
