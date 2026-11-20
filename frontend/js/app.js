@@ -10,12 +10,18 @@ tg.setHeaderColor('#0a0a1a');
 tg.setBackgroundColor('#0a0a1a');
 
 const API = '';  // Тот же домен
-let USER_ID = tg.initDataUnsafe?.user?.id;
+const TELEGRAM_INIT_DATA = tg.initData || '';
+const USER_ID = tg.initDataUnsafe?.user?.id;
 
-// Для тестирования без Telegram
-if (!USER_ID) {
-    USER_ID = 12345;
-    console.warn('⚠️ Тестовый режим, USER_ID =', USER_ID);
+if (!TELEGRAM_INIT_DATA || !USER_ID) {
+    document.body.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;background:#0a0a1a;color:#fff;font:16px Arial;text-align:center;padding:24px">Открой Anicard через Telegram, чтобы авторизоваться.</main>';
+    throw new Error('Telegram WebApp initData is unavailable');
+}
+
+async function authFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set('X-Telegram-Init-Data', TELEGRAM_INIT_DATA);
+    return window.authFetch(url, { ...options, headers });
 }
 
 let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
@@ -25,7 +31,7 @@ let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
 // ============================================
 async function loadUser() {
     try {
-        const r = await fetch(`${API}/api/user/${USER_ID}`);
+        const r = await authFetch(`${API}/api/user/${USER_ID}`);
         const d = await r.json();
         state.coins = d.coins;
         state.cards = d.total_cards;
@@ -85,7 +91,7 @@ document.getElementById('btn-claim').addEventListener('click', async () => {
     btn.disabled = true;
 
     try {
-        const r = await fetch(`${API}/api/claim/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/claim/${USER_ID}`, {method:'POST'});
         const d = await r.json();
         if (d.success) {
             state.coins = d.coins;
@@ -113,7 +119,7 @@ document.getElementById('btn-pull1').addEventListener('click', async () => {
     orb.classList.add('spinning');
 
     try {
-        const r = await fetch(`${API}/api/pull/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/pull/${USER_ID}`, {method:'POST'});
         const d = await r.json();
 
         if (!d.success) {
@@ -156,7 +162,7 @@ document.getElementById('btn-pull10').addEventListener('click', async () => {
     orb.classList.add('spinning');
 
     try {
-        const r = await fetch(`${API}/api/pull10/${USER_ID}`, {method:'POST'});
+        const r = await authFetch(`${API}/api/pull10/${USER_ID}`, {method:'POST'});
         const d = await r.json();
 
         if (!d.success) {
@@ -259,7 +265,7 @@ async function loadCollection(rarity = '') {
     try {
         let url = `${API}/api/collection/${USER_ID}?per_page=50`;
         if (rarity) url += `&rarity=${rarity}`;
-        const r = await fetch(url);
+        const r = await authFetch(url);
         const d = await r.json();
 
         document.getElementById('progress-fill').style.width = d.completion + '%';
@@ -294,7 +300,7 @@ async function loadCollection(rarity = '') {
 
 async function toggleFav(charId) {
     try {
-        await fetch(`${API}/api/favorite/${USER_ID}/${charId}`, {method: 'POST'});
+        await authFetch(`${API}/api/favorite/${USER_ID}/${charId}`, {method: 'POST'});
         haptic('success');
         toast('⭐ Карточка выбрана для профиля!');
         loadCollection();
@@ -311,8 +317,8 @@ document.getElementById('filter-rarity').addEventListener('change', e => {
 async function loadAlbum() {
     try {
         const [allR, collR] = await Promise.all([
-            fetch(`${API}/api/characters?per_page=200`),
-            fetch(`${API}/api/collection/${USER_ID}?per_page=999`),
+            authFetch(`${API}/api/characters?per_page=200`),
+            authFetch(`${API}/api/collection/${USER_ID}?per_page=999`),
         ]);
         const allD = await allR.json();
         const collD = await collR.json();
@@ -349,7 +355,7 @@ async function loadProfile() {
 
     // Загружаем фон профиля
     try {
-        const r = await fetch(`${API}/api/user/${USER_ID}`);
+        const r = await authFetch(`${API}/api/user/${USER_ID}`);
         const d = await r.json();
 
         const bg = document.getElementById('profile-bg');
@@ -417,7 +423,7 @@ document.getElementById('sg-submit').addEventListener('click', async () => {
     }
 
     try {
-        const r = await fetch(`${API}/api/suggest/${USER_ID}`, {
+        const r = await authFetch(`${API}/api/suggest/${USER_ID}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data),
@@ -450,7 +456,7 @@ document.getElementById('sg-submit').addEventListener('click', async () => {
 
 async function loadMySuggestions() {
     try {
-        const r = await fetch(`${API}/api/suggestions/${USER_ID}`);
+        const r = await authFetch(`${API}/api/suggestions/${USER_ID}`);
         const items = await r.json();
 
         const list = document.getElementById('sg-list');
@@ -508,7 +514,7 @@ document.getElementById('sg-image-input').addEventListener('change', async (e) =
     fd.append('file', file);
 
     try {
-        const r = await fetch(`${API}/api/suggest/upload/${USER_ID}`, {
+        const r = await authFetch(`${API}/api/suggest/upload/${USER_ID}`, {
             method: 'POST',
             body: fd,
         });
@@ -554,7 +560,7 @@ async function openCardModal(characterId) {
     haptic('light');
 
     try {
-        const r = await fetch(`${API}/api/card/${USER_ID}/${characterId}`);
+        const r = await authFetch(`${API}/api/card/${USER_ID}/${characterId}`);
         const data = await r.json();
 
         CURRENT_CARD = data;
@@ -701,7 +707,7 @@ async function toggleFavoriteBtn() {
     if (!CURRENT_CARD) return;
 
     try {
-        const r = await fetch(`${API}/api/favorite/${USER_ID}/${CURRENT_CARD.character.id}`, {
+        const r = await authFetch(`${API}/api/favorite/${USER_ID}/${CURRENT_CARD.character.id}`, {
             method: 'POST',
         });
         const d = await r.json();
@@ -736,7 +742,7 @@ async function dustCardBtn() {
     if (!confirm(`Распылить 1 копию за монеты?`)) return;
 
     try {
-        const r = await fetch(
+        const r = await authFetch(
             `${API}/api/card/${USER_ID}/${CURRENT_CARD.character.id}/dust`,
             { method: 'POST' }
         );
@@ -781,7 +787,7 @@ function shareCard() {
     // Через Telegram Share
     if (tg.openTelegramLink) {
         const encodedText = encodeURIComponent(shareText);
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(WEBAPP_URL || '')}&text=${encodedText}`);
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodedText}`);
     } else {
         // Fallback — копировать в буфер
         navigator.clipboard.writeText(shareText);
@@ -800,7 +806,7 @@ async function loadCollection(rarity = '') {
     try {
         let url = `${API}/api/collection/${USER_ID}?per_page=50`;
         if (rarity) url += `&rarity=${rarity}`;
-        const r = await fetch(url);
+        const r = await authFetch(url);
         const d = await r.json();
 
         document.getElementById('progress-fill').style.width = d.completion + '%';
@@ -843,8 +849,8 @@ let ALBUM_OWNED = new Set();
 async function loadAlbum() {
     try {
         const [allR, collR] = await Promise.all([
-            fetch(`${API}/api/characters?per_page=200`),
-            fetch(`${API}/api/collection/${USER_ID}?per_page=999`),
+            authFetch(`${API}/api/characters?per_page=200`),
+            authFetch(`${API}/api/collection/${USER_ID}?per_page=999`),
         ]);
         const allD = await allR.json();
         const collD = await collR.json();
