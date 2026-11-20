@@ -9,7 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "9196627754:AAF1EMbzbXkJJFgHdQVSv3TnM3Am8CGAj
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7694677506"))
 ADMIN_KEY = os.getenv("ADMIN_KEY", "luxury.bot.mlbb").strip()
 
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.example").strip()
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://luxury-8l4l.onrender.com").strip()
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 8080
