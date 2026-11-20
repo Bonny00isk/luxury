@@ -78,7 +78,7 @@ class GiveCoins(StatesGroup):
 # ============================================
 # АДМИН МЕНЮ
 # ============================================
-@admin_router.message(Command("admin"))
+@admin_router.message(Command("admin", "admins"))
 @admin_only
 async def admin_menu(message: Message):
     """Главное меню админки"""
