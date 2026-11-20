@@ -556,9 +556,8 @@ async def suggest_card(telegram_id: int, data: dict):
 
         # Уведомление админа
         try:
-            from bot import notify_admin_new_suggestion
-            import asyncio
-            asyncio.create_task(notify_admin_new_suggestion(
+            from bot import notify_admin_new_suggestion, submit_bot_notification
+            submit_bot_notification(notify_admin_new_suggestion(
                 user_name or f"ID:{telegram_id}",
                 suggestion.name_en,
                 suggestion.anime_title,
@@ -688,9 +687,8 @@ async def admin_approve(sid: int, data: dict, _: bool = Depends(verify_admin)):
         db.commit()
 
         try:
-            from bot import notify_suggestion_result
-            import asyncio
-            asyncio.create_task(notify_suggestion_result(
+            from bot import notify_suggestion_result, submit_bot_notification
+            submit_bot_notification(notify_suggestion_result(
                 user_id, "approved", comment, reward, char_name,
             ))
         except Exception as e:
@@ -727,9 +725,8 @@ async def admin_reject(sid: int, data: dict, _: bool = Depends(verify_admin)):
 
         # Уведомляем автора
         try:
-            from bot import notify_suggestion_result
-            import asyncio
-            asyncio.create_task(notify_suggestion_result(
+            from bot import notify_suggestion_result, submit_bot_notification
+            submit_bot_notification(notify_suggestion_result(
                 user_id, "rejected", comment,
             ))
         except Exception as e:
