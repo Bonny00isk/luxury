@@ -192,7 +192,7 @@ async function openCharModal() {
     const animeList = await api('/api/admin/anime');
     const sel = document.getElementById('char-anime');
     sel.innerHTML = '<option value="">— Не выбрано —</option>' +
-        animeList.map(a => `<option value="${a.id}">${a.title_ru || a.title_en}</option>`).join('');
+        animeList.map(a => `<option value="${a.id}">${escapeHTML(a.title_ru || a.title_en)}</option>`).join('');
 
     // Очищаем поля
     document.getElementById('char-name-en').value = '';
