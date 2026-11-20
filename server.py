@@ -11,6 +11,8 @@ from database import Suggestion
 from datetime import datetime
 
 from database import get_session, RARITY_INFO, Character, Anime, User, UserCard, AdminLog, CharacterImage, sync_cover
+from database import init_db
+from seed import seed_if_empty
 from gacha import GachaService
 from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, WEBAPP_URL
 
@@ -21,6 +23,14 @@ from import_anilist import (
 )
 
 app = FastAPI()
+
+@app.on_event("startup")
+def initialize_database_on_server_startup():
+    """Ensure schema exists even when Render starts Uvicorn directly."""
+    init_db()
+    seed_if_empty()
+
+
 
 app.add_middleware(
     CORSMiddleware,
