@@ -312,7 +312,7 @@ async function loadProfile() {
         const fav = document.getElementById('profile-fav');
 
         if (d.profile_card && d.profile_card.image_url) {
-            bg.style.backgroundImage = `url('${d.profile_card.image_url}')`;
+            bg.style.backgroundImage = `url('${safeImageUrl(d.profile_card.image_url)}')`;
             fav.textContent = `⭐ ${d.profile_card.name} • ${d.profile_card.anime}`;
         } else {
             bg.style.backgroundImage = '';
@@ -473,7 +473,7 @@ document.getElementById('sg-image-input').addEventListener('change', async (e) =
         if (d.url) {
             document.getElementById('sg-image-url-hidden').value = d.url;
             const preview = document.getElementById('sg-preview-img');
-            preview.src = d.url;
+            preview.src = safeImageUrl(d.url);
             preview.classList.remove('hidden');
             document.querySelector('.sg-clear-btn').classList.remove('hidden');
             hint.textContent = '✅ Загружено';
@@ -606,7 +606,7 @@ function renderModalImage() {
     if (url) {
         img.classList.remove('hidden');
         placeholder.classList.add('hidden');
-        img.src = url;
+        img.src = safeImageUrl(url);
         img.onerror = () => {
             img.classList.add('hidden');
             placeholder.classList.remove('hidden');
