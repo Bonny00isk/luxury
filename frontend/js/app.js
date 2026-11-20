@@ -21,7 +21,7 @@ if (!TELEGRAM_INIT_DATA || !USER_ID) {
 async function authFetch(url, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set('X-Telegram-Init-Data', TELEGRAM_INIT_DATA);
-    return window.authFetch(url, { ...options, headers });
+    return window.fetch(url, { ...options, headers });
 }
 
 let state = { coins: 0, cards: 0, pulls: 0, pity: 0 };
