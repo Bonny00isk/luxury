@@ -315,9 +315,26 @@ async def admin_update_char(char_id: int, data: dict, _: bool = Depends(verify_a
             raise HTTPException(404, "Not found")
 
         for key in ["name_en", "name_ru", "name_jp", "anime_id", "rarity",
-                    "image_url", "description", "power", "defense", "speed", "is_active"]:
+                    "description", "power", "defense", "speed", "is_active"]:
             if key in data:
                 setattr(char, key, data[key])
+
+        if "image_url" in data:
+            cover = db.query(CharacterImage).filter(
+                CharacterImage.character_id == char_id
+            ).order_by(CharacterImage.position.asc(), CharacterImage.id.asc()).first()
+            new_cover_url = data.get("image_url")
+            if new_cover_url:
+                if cover:
+                    cover.url = new_cover_url
+                    cover.position = 0
+                else:
+                    db.add(CharacterImage(character_id=char_id, url=new_cover_url, position=0))
+            elif cover:
+                db.delete(cover)
+            db.flush()
+            db.refresh(char)
+            sync_cover(db, char)
 
         db.add(AdminLog(action="edit_char", details=f"Edited #{char_id}"))
         db.commit()
@@ -662,6 +679,8 @@ async def admin_approve(sid: int, data: dict, _: bool = Depends(verify_admin)):
         )
         db.add(char)
         db.flush()
+        if char.image_url:
+            db.add(CharacterImage(character_id=char.id, url=char.image_url, position=0))
 
         s.status = "approved"
         s.admin_comment = data.get("comment")
@@ -895,6 +914,7 @@ IMPORT_STATE = {
 }
 
 IMPORT_LOCK = threading.Lock()
+IMPORT_STOP_EVENT = threading.Event()
 
 
 def add_log(message: str):
@@ -908,6 +928,7 @@ def add_log(message: str):
 
 def reset_import_state():
     """Сброс состояния перед новым импортом"""
+    IMPORT_STOP_EVENT.clear()
     with IMPORT_LOCK:
         IMPORT_STATE.update({
             "running": True,
@@ -928,11 +949,6 @@ def reset_import_state():
 def background_import(anime_ids: list, chars_limit: int, filter_gender: str, download_images: bool):
     """Импорт в отдельном потоке"""
     try:
-        reset_import_state()
-
-        with IMPORT_LOCK:
-            IMPORT_STATE["total"] = len(anime_ids)
-
         add_log(f"🚀 Начинаем импорт {len(anime_ids)} аниме")
         add_log(f"⚙️ Настройки: {chars_limit} персонажей, пол={filter_gender or 'все'}, картинки={download_images}")
 
@@ -940,6 +956,9 @@ def background_import(anime_ids: list, chars_limit: int, filter_gender: str, dow
         total_skipped = 0
 
         for i, anime_id in enumerate(anime_ids, 1):
+            if IMPORT_STOP_EVENT.is_set():
+                break
+
             # Получаем инфо об аниме
             gql = """
             query ($id: Int) {
@@ -976,13 +995,18 @@ def background_import(anime_ids: list, chars_limit: int, filter_gender: str, dow
 
             total_added += added
 
+        stopped = IMPORT_STOP_EVENT.is_set()
         with IMPORT_LOCK:
-            IMPORT_STATE["progress"] = len(anime_ids)
+            if not stopped:
+                IMPORT_STATE["progress"] = len(anime_ids)
             IMPORT_STATE["added"] = total_added
             IMPORT_STATE["finished"] = True
             IMPORT_STATE["running"] = False
 
-        add_log(f"\n🎉 ГОТОВО! Добавлено {total_added} персонажей")
+        if stopped:
+            add_log(f"\n⏹ Импорт остановлен. Добавлено {total_added} персонажей")
+        else:
+            add_log(f"\n🎉 ГОТОВО! Добавлено {total_added} персонажей")
 
     except Exception as e:
         add_log(f"❌ ОШИБКА: {e}")
@@ -1049,6 +1073,8 @@ def import_anime_with_logs(anime_data, chars_limit, download_images, filter_gend
         skipped_duplicate = 0
 
         for i, edge in enumerate(edges, 1):
+            if IMPORT_STOP_EVENT.is_set():
+                break
             char = edge["node"]
             role = edge["role"]
             name_en = char["name"]["full"]
@@ -1240,6 +1266,11 @@ async def admin_import_start(data: dict, _: bool = Depends(verify_admin)):
     if not anime_ids:
         raise HTTPException(400, "Не выбраны аниме")
 
+    # Сбрасываем состояние до запуска потока, чтобы stop не потерялся при старте.
+    reset_import_state()
+    with IMPORT_LOCK:
+        IMPORT_STATE["total"] = len(anime_ids)
+
     # Запускаем в фоне
     thread = threading.Thread(
         target=background_import,
@@ -1261,6 +1292,7 @@ async def admin_import_status(_: bool = Depends(verify_admin)):
 @app.post("/api/admin/import/stop")
 async def admin_import_stop(_: bool = Depends(verify_admin)):
     """Остановить импорт (флаг)"""
+    IMPORT_STOP_EVENT.set()
     with IMPORT_LOCK:
         IMPORT_STATE["running"] = False
     return {"success": True}
