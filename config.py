@@ -9,6 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://luxury-8l4l.onrender.com").strip()
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = int(os.getenv("PORT", os.getenv("SERVER_PORT", "8080")))
