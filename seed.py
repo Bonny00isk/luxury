@@ -138,7 +138,10 @@ def enrich_missing_character_images():
                 names = [title.get("english"), title.get("romaji")]
                 if wanted in {normalize(name) for name in names if name}:
                     exact.append(candidate)
-            media = exact[0] if exact else candidates[0]
+            if not exact:
+                print(f"⚠️ AniList: точное совпадение для {anime_row.title_en} не найдено")
+                continue
+            media = exact[0]
 
             data = get_anime_with_characters(media["id"], chars_limit=50)
             if not data:
