@@ -18,6 +18,20 @@ if (!TELEGRAM_INIT_DATA || !USER_ID) {
     throw new Error('Telegram WebApp initData is unavailable');
 }
 
+function escapeHTML(value) {
+    const entities = {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'};
+    return String(value ?? '').replace(/[&<>"']/g, ch => entities[ch]);
+}
+
+function safeImageUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (raw.startsWith('/') && !raw.startsWith('//')) return escapeHTML(raw);
+    try {
+        const parsed = new URL(raw, window.location.origin);
+        return ['http:', 'https:'].includes(parsed.protocol) ? escapeHTML(raw) : '';
+    } catch (_) { return ''; }
+}
+
 async function authFetch(url, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set('X-Telegram-Init-Data', TELEGRAM_INIT_DATA);
@@ -197,10 +211,10 @@ function showCard(card) {
 
     const stars = '⭐'.repeat(card.stars);
     const imgContent = card.image_url
-        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.emoji}'">`
+        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.emoji)}'">`
         : card.emoji;
 
-    reveal.className = `card-reveal rarity-border-${card.rarity}`;
+    reveal.className = `card-reveal rarity-border-${escapeHTML(card.rarity)}`;
     reveal.innerHTML = `
         <div class="card-img-area">
             ${typeof imgContent === 'string' && imgContent.startsWith('<') ? imgContent : `<span>${imgContent}</span>`}
@@ -210,10 +224,10 @@ function showCard(card) {
             }
         </div>
         <div class="card-body">
-            <div class="card-name">${card.name}</div>
-            <div class="card-anime">📺 ${card.anime}</div>
+            <div class="card-name">${escapeHTML(card.name)}</div>
+            <div class="card-anime">📺 ${escapeHTML(card.anime)}</div>
             <div class="card-stars">${stars}</div>
-            <div class="card-rarity-label" style="color:${card.color}">${card.rarity_name}</div>
+            <div class="card-rarity-label" style="color:${escapeHTML(card.color)}">${escapeHTML(card.rarity_name)}</div>
             <div class="card-stats">
                 <span>⚔️${card.power}</span>
                 <span>🛡${card.defense}</span>
@@ -238,13 +252,13 @@ function showMulti(cards) {
     const grid = document.getElementById('multi-grid');
 
     grid.innerHTML = cards.map(card => `
-        <div class="mini-card rarity-border-${card.rarity}" style="border-width:2px">
+        <div class="mini-card rarity-border-${escapeHTML(card.rarity)}" style="border-width:2px">
             <div class="mini-card-img">
                 ${card.image_url
-                    ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.emoji}'">`
+                    ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.emoji)}'">`
                     : card.emoji}
             </div>
-            <div class="mini-card-name">${card.name}</div>
+            <div class="mini-card-name">${escapeHTML(card.name)}</div>
             <div class="mini-card-rarity">${'⭐'.repeat(card.stars)}</div>
             ${card.is_new ? '<span class="mini-new">NEW</span>' : ''}
         </div>
@@ -279,18 +293,18 @@ async function loadCollection(rarity = '') {
         }
 
         grid.innerHTML = d.cards.map(card => `
-            <div class="grid-card r-${card.rarity}" onclick="toggleFav(${card.character_id})">
+            <div class="grid-card r-${escapeHTML(card.rarity)}" onclick="toggleFav(${card.character_id})">
                 <div class="grid-card-img">
                     ${card.image_url
-                        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.rarity_info.emoji}'">`
+                        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.rarity_info.emoji)}'">`
                         : card.rarity_info.emoji}
                 </div>
                 ${card.count > 1 ? `<span class="grid-card-count">x${card.count}</span>` : ''}
                 ${card.is_favorite ? '<span class="grid-card-fav">⭐</span>' : ''}
                 <div class="grid-card-info">
-                    <div class="grid-card-name">${card.name}</div>
+                    <div class="grid-card-name">${escapeHTML(card.name)}</div>
                     <div class="grid-card-sub">
-                        <span>${card.rarity_info.emoji} ${'⭐'.repeat(card.rarity_info.stars)}</span>
+                        <span>${escapeHTML(card.rarity_info.emoji)} ${'⭐'.repeat(card.rarity_info.stars)}</span>
                     </div>
                 </div>
             </div>
@@ -326,13 +340,13 @@ async function loadAlbum() {
         const owned = new Set(collD.cards.map(c => c.character_id));
 
         document.getElementById('album-grid').innerHTML = allD.characters.map(char => `
-            <div class="grid-card r-${char.rarity} ${owned.has(char.id) ? '' : 'not-owned'}">
+            <div class="grid-card r-${escapeHTML(char.rarity)} ${owned.has(char.id) ? '' : 'not-owned'}">
                 <div class="grid-card-img" style="font-size:20px">
-                    ${char.rarity_info.emoji}
+                    ${escapeHTML(char.rarity_info.emoji)}
                 </div>
                 <div class="grid-card-info">
                     <div class="grid-card-name" style="font-size:9px">
-                        ${owned.has(char.id) ? char.name : '???'}
+                        ${owned.has(char.id) ? escapeHTML(char.name) : '???'}
                     </div>
                 </div>
             </div>
@@ -472,20 +486,20 @@ async function loadMySuggestions() {
         };
 
         list.innerHTML = items.map(s => `
-            <div class="sg-item ${s.status}">
+            <div class="sg-item ${escapeHTML(s.status)}">
                 <div class="sg-item-with-img">
                     ${s.image_url
-                        ? `<img src="${s.image_url}" class="sg-item-thumb">`
+                        ? `<img src="${safeImageUrl(s.image_url)}" class="sg-item-thumb">`
                         : '<div class="sg-item-thumb" style="display:flex;align-items:center;justify-content:center">🎴</div>'
                     }
                     <div class="sg-item-body">
                         <div class="sg-item-header">
-                            <span class="sg-item-name">${s.name_ru || s.name_en}</span>
-                            <span class="sg-status ${s.status}">${statusText[s.status]}</span>
+                            <span class="sg-item-name">${escapeHTML(s.name_ru || s.name_en)}</span>
+                            <span class="sg-status ${escapeHTML(s.status)}">${statusText[s.status]}</span>
                         </div>
-                        <div class="sg-item-anime">📺 ${s.anime_title}</div>
+                        <div class="sg-item-anime">📺 ${escapeHTML(s.anime_title)}</div>
                         ${s.admin_comment
-                            ? `<div class="sg-item-comment">💬 ${s.admin_comment}</div>`
+                            ? `<div class="sg-item-comment">💬 ${escapeHTML(s.admin_comment)}</div>`
                             : ''}
                     </div>
                 </div>
@@ -591,7 +605,7 @@ async function openCardModal(characterId) {
 
         // Редкость с цветом
         const rarityEl = document.getElementById('cm-rarity');
-        rarityEl.innerHTML = `<span class="rarity-name-${char.rarity}">${info.emoji} ${info.name}</span>`;
+        rarityEl.innerHTML = `<span class="rarity-name-${escapeHTML(char.rarity)}">${escapeHTML(info.emoji)} ${escapeHTML(info.name)}</span>`;
 
         // Статы
         document.getElementById('cm-stats').textContent =
@@ -820,18 +834,18 @@ async function loadCollection(rarity = '') {
         }
 
         grid.innerHTML = d.cards.map(card => `
-            <div class="grid-card r-${card.rarity}" onclick="openCardModal(${card.character_id})">
+            <div class="grid-card r-${escapeHTML(card.rarity)}" onclick="openCardModal(${card.character_id})">
                 <div class="grid-card-img">
                     ${card.image_url
-                        ? `<img src="${card.image_url}" onerror="this.parentElement.innerHTML='${card.rarity_info.emoji}'">`
+                        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.rarity_info.emoji)}'">`
                         : card.rarity_info.emoji}
                 </div>
                 ${card.count > 1 ? `<span class="grid-card-count">x${card.count}</span>` : ''}
                 ${card.is_favorite ? '<span class="grid-card-fav">⭐</span>' : ''}
                 <div class="grid-card-info">
-                    <div class="grid-card-name">${card.name}</div>
+                    <div class="grid-card-name">${escapeHTML(card.name)}</div>
                     <div class="grid-card-sub">
-                        <span>${card.rarity_info.emoji} ${'⭐'.repeat(card.rarity_info.stars)}</span>
+                        <span>${escapeHTML(card.rarity_info.emoji)} ${'⭐'.repeat(card.rarity_info.stars)}</span>
                     </div>
                 </div>
             </div>
@@ -865,16 +879,16 @@ async function loadAlbum() {
 function renderAlbumGrid(chars) {
     const owned = ALBUM_OWNED;
     document.getElementById('album-grid').innerHTML = chars.map(char => `
-        <div class="grid-card r-${char.rarity} ${owned.has(char.id) ? '' : 'not-owned'}"
+        <div class="grid-card r-${escapeHTML(char.rarity)} ${owned.has(char.id) ? '' : 'not-owned'}"
              onclick="openCardModal(${char.id})">
             <div class="grid-card-img" style="font-size:20px">
                 ${owned.has(char.id) && char.image_url
-                    ? `<img src="${char.image_url}" onerror="this.parentElement.innerHTML='${char.rarity_info.emoji}'">`
+                    ? `<img src="${char.image_url}" onerror="this.parentElement.innerHTML='${escapeHTML(char.rarity_info.emoji)}'">`
                     : char.rarity_info.emoji}
             </div>
             <div class="grid-card-info">
                 <div class="grid-card-name" style="font-size:9px">
-                    ${owned.has(char.id) ? char.name : '???'}
+                    ${owned.has(char.id) ? escapeHTML(char.name) : '???'}
                 </div>
             </div>
         </div>
