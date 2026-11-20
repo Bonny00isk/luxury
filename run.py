@@ -27,7 +27,7 @@ async def start_bot():
         print(f"✅ Бот подключён: @{me.username} ({me.first_name})")
     except Exception as e:
         print(f"❌ ОШИБКА ПОДКЛЮЧЕНИЯ К БОТУ: {e}")
-        print("   Проверь BOT_TOKEN в .env!")
+        print("   Проверь BOT_TOKEN в переменных окружения Render.")
         return
 
     await dp.start_polling(bot)
