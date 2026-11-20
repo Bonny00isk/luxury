@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "9196627754:AAF1EMbzbXkJJFgHdQVSv3TnM3Am8CGAjpQ").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7694677506"))
-ADMIN_KEY = os.getenv("ADMIN_KEY", "").strip()
+ADMIN_KEY = os.getenv("ADMIN_KEY", "luxury.bot.mlbb").strip()
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.example").strip()
 
