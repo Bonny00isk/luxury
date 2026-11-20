@@ -275,43 +275,6 @@ document.getElementById('close-multi').addEventListener('click', () => {
 // ============================================
 // COLLECTION
 // ============================================
-async function loadCollection(rarity = '') {
-    try {
-        let url = `${API}/api/collection/${USER_ID}?per_page=50`;
-        if (rarity) url += `&rarity=${rarity}`;
-        const r = await authFetch(url);
-        const d = await r.json();
-
-        document.getElementById('progress-fill').style.width = d.completion + '%';
-        document.getElementById('progress-text').textContent =
-            `${d.total_collected}/${d.total_characters} (${d.completion}%)`;
-
-        const grid = document.getElementById('collection-grid');
-        if (d.cards.length === 0) {
-            grid.innerHTML = '<p style="text-align:center;color:var(--text2);grid-column:1/-1;padding:40px">Пока пусто 😢</p>';
-            return;
-        }
-
-        grid.innerHTML = d.cards.map(card => `
-            <div class="grid-card r-${escapeHTML(card.rarity)}" onclick="toggleFav(${card.character_id})">
-                <div class="grid-card-img">
-                    ${card.image_url
-                        ? `<img src="${safeImageUrl(card.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(card.rarity_info.emoji)}'">`
-                        : card.rarity_info.emoji}
-                </div>
-                ${card.count > 1 ? `<span class="grid-card-count">x${card.count}</span>` : ''}
-                ${card.is_favorite ? '<span class="grid-card-fav">⭐</span>' : ''}
-                <div class="grid-card-info">
-                    <div class="grid-card-name">${escapeHTML(card.name)}</div>
-                    <div class="grid-card-sub">
-                        <span>${escapeHTML(card.rarity_info.emoji)} ${'⭐'.repeat(card.rarity_info.stars)}</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    } catch(e) { console.error(e); }
-}
-
 async function toggleFav(charId) {
     try {
         await authFetch(`${API}/api/favorite/${USER_ID}/${charId}`, {method: 'POST'});
@@ -328,33 +291,6 @@ document.getElementById('filter-rarity').addEventListener('change', e => {
 // ============================================
 // ALBUM
 // ============================================
-async function loadAlbum() {
-    try {
-        const [allR, collR] = await Promise.all([
-            authFetch(`${API}/api/characters?per_page=200`),
-            authFetch(`${API}/api/collection/${USER_ID}?per_page=999`),
-        ]);
-        const allD = await allR.json();
-        const collD = await collR.json();
-
-        const owned = new Set(collD.cards.map(c => c.character_id));
-
-        document.getElementById('album-grid').innerHTML = allD.characters.map(char => `
-            <div class="grid-card r-${escapeHTML(char.rarity)} ${owned.has(char.id) ? '' : 'not-owned'}">
-                <div class="grid-card-img" style="font-size:20px">
-                    ${escapeHTML(char.rarity_info.emoji)}
-                </div>
-                <div class="grid-card-info">
-                    <div class="grid-card-name" style="font-size:9px">
-                        ${owned.has(char.id) ? escapeHTML(char.name) : '???'}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-
-    } catch(e) { console.error(e); }
-}
-
 // ============================================
 // PROFILE
 // ============================================
@@ -883,7 +819,7 @@ function renderAlbumGrid(chars) {
              onclick="openCardModal(${char.id})">
             <div class="grid-card-img" style="font-size:20px">
                 ${owned.has(char.id) && char.image_url
-                    ? `<img src="${char.image_url}" onerror="this.parentElement.innerHTML='${escapeHTML(char.rarity_info.emoji)}'">`
+                    ? `<img src="${safeImageUrl(char.image_url)}" onerror="this.parentElement.innerHTML='${escapeHTML(char.rarity_info.emoji)}'">`
                     : char.rarity_info.emoji}
             </div>
             <div class="grid-card-info">
