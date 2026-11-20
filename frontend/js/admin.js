@@ -9,9 +9,9 @@ let ANIME_LIST = [];
 let EDITING_CHAR = null;
 
 function escapeHTML(value) {
-    return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[ch]));
+    const entities = {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'};
+    return String(value ?? '').replace(/[&<>"']/g, ch => entities[ch]);
 }
-
 function safeImageUrl(value) {
     const raw = String(value ?? '').trim();
     if (raw.startsWith('/') && !raw.startsWith('//')) return escapeHTML(raw);
