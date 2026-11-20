@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-import shutil, uuid, hashlib, hmac, threading, queue
+import shutil, uuid, hashlib, hmac, threading, queue, json, time
 
 from urllib.parse import parse_qsl
 from database import Suggestion
@@ -12,7 +12,7 @@ from datetime import datetime
 
 from database import get_session, RARITY_INFO, Character, Anime, User, UserCard, AdminLog, CharacterImage, sync_cover
 from gacha import GachaService
-from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, ADMIN_KEY
+from config import SERVER_HOST, SERVER_PORT, ADMIN_ID, BOT_TOKEN, WEBAPP_URL
 
 from import_anilist import (
     search_anime as anilist_search,
@@ -24,7 +24,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[WEBAPP_URL.rstrip("/")] if WEBAPP_URL else [],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,19 +38,68 @@ app.mount("/uploads", StaticFiles(directory="frontend/uploads"), name="uploads")
 
 
 # ============================================
-# АВТОРИЗАЦИЯ АДМИНА
+# АВТОРИЗАЦИЯ TELEGRAM MINI APP
 # ============================================
-def verify_admin(x_admin_key: str = Header(None)):
-    """Простая проверка админ-ключа"""
-    expected = ADMIN_KEY
-    if not expected or not hmac.compare_digest(x_admin_key or "", expected):
-        raise HTTPException(403, "Forbidden")
+def _validated_telegram_user_id(init_data: str) -> int:
+    """Проверяет подпись Telegram WebApp initData и возвращает доверенный user.id."""
+    if not BOT_TOKEN or not init_data:
+        raise HTTPException(status_code=401, detail="Telegram authorization required")
+
+    try:
+        fields = dict(parse_qsl(init_data, keep_blank_values=True))
+        received_hash = fields.pop("hash", None)
+        auth_date = int(fields.get("auth_date", "0"))
+        now = int(time.time())
+
+        if not received_hash or auth_date <= 0:
+            raise ValueError("Missing hash or auth_date")
+        if auth_date > now + 60 or now - auth_date > 86400:
+            raise ValueError("Expired initData")
+
+        data_check_string = "\n".join(
+            f"{key}={value}" for key, value in sorted(fields.items())
+        )
+        secret_key = hmac.new(
+            b"WebAppData", BOT_TOKEN.encode("utf-8"), hashlib.sha256
+        ).digest()
+        calculated_hash = hmac.new(
+            secret_key, data_check_string.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(calculated_hash, received_hash):
+            raise ValueError("Invalid Telegram signature")
+
+        user_data = json.loads(fields["user"])
+        user_id = int(user_data["id"])
+        if user_id <= 0:
+            raise ValueError("Invalid Telegram user")
+        return user_id
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired Telegram authorization")
+
+
+def verify_telegram_user(
+    request: Request,
+    x_telegram_init_data: str = Header(None, alias="X-Telegram-Init-Data"),
+):
+    """Проверяет initData и сверяет ID из URL с подписанным Telegram user.id."""
+    user_id = _validated_telegram_user_id(x_telegram_init_data or "")
+    path_user_id = request.path_params.get("telegram_id")
+    if path_user_id is not None and int(path_user_id) != user_id:
+        raise HTTPException(status_code=403, detail="Telegram user mismatch")
+    return user_id
+
+
+def verify_admin(
+    x_telegram_init_data: str = Header(None, alias="X-Telegram-Init-Data"),
+):
+    """Допускает в веб-админку только владельца, подтверждённого Telegram."""
+    user_id = _validated_telegram_user_id(x_telegram_init_data or "")
+    if user_id != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Admin access required")
     return True
-
-
-def get_admin_key():
-    """Возвращает настроенный секрет админки только внутреннему коду."""
-    return ADMIN_KEY
 
 
 # ============================================
@@ -73,7 +122,7 @@ async def admin_page():
 # ============================================
 # ЮЗЕР API
 # ============================================
-@app.get("/api/user/{telegram_id}")
+@app.get("/api/user/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_user(telegram_id: int):
     db = get_session()
     try:
@@ -102,7 +151,7 @@ async def api_user(telegram_id: int):
         db.close()
 
 
-@app.post("/api/claim/{telegram_id}")
+@app.post("/api/claim/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_claim(telegram_id: int):
     db = get_session()
     try:
@@ -111,7 +160,7 @@ async def api_claim(telegram_id: int):
         db.close()
 
 
-@app.post("/api/pull/{telegram_id}")
+@app.post("/api/pull/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_pull(telegram_id: int):
     db = get_session()
     try:
@@ -120,7 +169,7 @@ async def api_pull(telegram_id: int):
         db.close()
 
 
-@app.post("/api/pull10/{telegram_id}")
+@app.post("/api/pull10/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_pull10(telegram_id: int):
     db = get_session()
     try:
@@ -129,7 +178,7 @@ async def api_pull10(telegram_id: int):
         db.close()
 
 
-@app.get("/api/collection/{telegram_id}")
+@app.get("/api/collection/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_collection(telegram_id: int, page: int = 1, per_page: int = 50, rarity: str = None):
     db = get_session()
     try:
@@ -155,7 +204,7 @@ async def api_rarities():
 # ============================================
 # ИЗБРАННОЕ (для фона профиля)
 # ============================================
-@app.post("/api/favorite/{telegram_id}/{character_id}")
+@app.post("/api/favorite/{telegram_id}/{character_id}", dependencies=[Depends(verify_telegram_user)])
 async def toggle_favorite(telegram_id: int, character_id: int):
     db = get_session()
     try:
@@ -190,17 +239,19 @@ async def toggle_favorite(telegram_id: int, character_id: int):
 @app.post("/api/admin/upload")
 async def admin_upload(file: UploadFile = File(...), _: bool = Depends(verify_admin)):
     """Загрузка картинки"""
-    # Проверяем формат
-    ext = file.filename.split(".")[-1].lower()
+    # Проверяем формат и ограничиваем размер файла (5 МБ).
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
         raise HTTPException(400, "Только jpg/png/webp/gif")
+
+    contents = await file.read(5 * 1024 * 1024 + 1)
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Файл больше 5 МБ")
 
     # Уникальное имя
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = UPLOAD_DIR / filename
-
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    filepath.write_bytes(contents)
 
     return {"url": f"/uploads/cards/{filename}"}
 
@@ -264,9 +315,26 @@ async def admin_update_char(char_id: int, data: dict, _: bool = Depends(verify_a
             raise HTTPException(404, "Not found")
 
         for key in ["name_en", "name_ru", "name_jp", "anime_id", "rarity",
-                    "image_url", "description", "power", "defense", "speed", "is_active"]:
+                    "description", "power", "defense", "speed", "is_active"]:
             if key in data:
                 setattr(char, key, data[key])
+
+        if "image_url" in data:
+            cover = db.query(CharacterImage).filter(
+                CharacterImage.character_id == char_id
+            ).order_by(CharacterImage.position.asc(), CharacterImage.id.asc()).first()
+            new_cover_url = data.get("image_url")
+            if new_cover_url:
+                if cover:
+                    cover.url = new_cover_url
+                    cover.position = 0
+                else:
+                    db.add(CharacterImage(character_id=char_id, url=new_cover_url, position=0))
+            elif cover:
+                db.delete(cover)
+            db.flush()
+            db.refresh(char)
+            sync_cover(db, char)
 
         db.add(AdminLog(action="edit_char", details=f"Edited #{char_id}"))
         db.commit()
@@ -468,7 +536,7 @@ async def admin_logs(limit: int = 50, _: bool = Depends(verify_admin)):
 # ============================================
 # ОБНОВИ suggest_card — добавь image_url
 # ============================================
-@app.post("/api/suggest/{telegram_id}")
+@app.post("/api/suggest/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def suggest_card(telegram_id: int, data: dict):
     db = get_session()
     try:
@@ -505,9 +573,8 @@ async def suggest_card(telegram_id: int, data: dict):
 
         # Уведомление админа
         try:
-            from bot import notify_admin_new_suggestion
-            import asyncio
-            asyncio.create_task(notify_admin_new_suggestion(
+            from bot import notify_admin_new_suggestion, submit_bot_notification
+            submit_bot_notification(notify_admin_new_suggestion(
                 user_name or f"ID:{telegram_id}",
                 suggestion.name_en,
                 suggestion.anime_title,
@@ -519,7 +586,7 @@ async def suggest_card(telegram_id: int, data: dict):
     finally:
         db.close()
 
-@app.get("/api/suggestions/{telegram_id}")
+@app.get("/api/suggestions/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def get_my_suggestions(telegram_id: int):
     db = get_session()
     try:
@@ -612,6 +679,8 @@ async def admin_approve(sid: int, data: dict, _: bool = Depends(verify_admin)):
         )
         db.add(char)
         db.flush()
+        if char.image_url:
+            db.add(CharacterImage(character_id=char.id, url=char.image_url, position=0))
 
         s.status = "approved"
         s.admin_comment = data.get("comment")
@@ -637,9 +706,8 @@ async def admin_approve(sid: int, data: dict, _: bool = Depends(verify_admin)):
         db.commit()
 
         try:
-            from bot import notify_suggestion_result
-            import asyncio
-            asyncio.create_task(notify_suggestion_result(
+            from bot import notify_suggestion_result, submit_bot_notification
+            submit_bot_notification(notify_suggestion_result(
                 user_id, "approved", comment, reward, char_name,
             ))
         except Exception as e:
@@ -676,9 +744,8 @@ async def admin_reject(sid: int, data: dict, _: bool = Depends(verify_admin)):
 
         # Уведомляем автора
         try:
-            from bot import notify_suggestion_result
-            import asyncio
-            asyncio.create_task(notify_suggestion_result(
+            from bot import notify_suggestion_result, submit_bot_notification
+            submit_bot_notification(notify_suggestion_result(
                 user_id, "rejected", comment,
             ))
         except Exception as e:
@@ -707,7 +774,7 @@ SUGGEST_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # ============================================
 # ЗАГРУЗКА КАРТИНКИ ДЛЯ ПРЕДЛОЖЕНИЯ (без ключа)
 # ============================================
-@app.post("/api/suggest/upload/{telegram_id}")
+@app.post("/api/suggest/upload/{telegram_id}", dependencies=[Depends(verify_telegram_user)])
 async def suggest_upload(telegram_id: int, file: UploadFile = File(...)):
     """Загрузка картинки от пользователя (для предложения)"""
 
@@ -730,7 +797,7 @@ async def suggest_upload(telegram_id: int, file: UploadFile = File(...)):
 
     return {"url": f"/uploads/suggestions/{filename}"}  
 
-@app.get("/api/card/{telegram_id}/{character_id}")
+@app.get("/api/card/{telegram_id}/{character_id}", dependencies=[Depends(verify_telegram_user)])
 async def api_card_details(telegram_id: int, character_id: int):
     """Детальная информация о карточке пользователя"""
     db = get_session()
@@ -748,9 +815,9 @@ async def api_card_details(telegram_id: int, character_id: int):
 
         # Статистика — у скольких юзеров есть эта карта
         total_users = db.query(User).count()
-        owners_count = db.query(UserCard).filter(
+        owners_count = db.query(UserCard.user_id).filter(
             UserCard.character_id == character_id,
-        ).distinct(UserCard.user_id).count()
+        ).distinct().count()
 
         percentage = round((owners_count / total_users * 100), 2) if total_users > 0 else 0
 
@@ -796,7 +863,7 @@ async def api_card_details(telegram_id: int, character_id: int):
 
 
 # Распылить дубликат в монеты
-@app.post("/api/card/{telegram_id}/{character_id}/dust")
+@app.post("/api/card/{telegram_id}/{character_id}/dust", dependencies=[Depends(verify_telegram_user)])
 async def api_dust_card(telegram_id: int, character_id: int):
     """Распылить лишнюю копию карточки в монеты"""
     db = get_session()
@@ -810,10 +877,12 @@ async def api_dust_card(telegram_id: int, character_id: int):
             raise HTTPException(400, "Нельзя распылить последнюю копию")
 
         char = db.query(Character).get(character_id)
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        if not char or not user:
+            raise HTTPException(404, "Character or user not found")
+
         from config import DUPLICATE_COINS
         dust_reward = DUPLICATE_COINS.get(char.rarity, 5) * 2  # x2 за распыление
-
-        user = db.query(User).filter(User.telegram_id == telegram_id).first()
         user.coins += dust_reward
         user_card.count -= 1
 
@@ -845,6 +914,7 @@ IMPORT_STATE = {
 }
 
 IMPORT_LOCK = threading.Lock()
+IMPORT_STOP_EVENT = threading.Event()
 
 
 def add_log(message: str):
@@ -858,6 +928,7 @@ def add_log(message: str):
 
 def reset_import_state():
     """Сброс состояния перед новым импортом"""
+    IMPORT_STOP_EVENT.clear()
     with IMPORT_LOCK:
         IMPORT_STATE.update({
             "running": True,
@@ -878,11 +949,6 @@ def reset_import_state():
 def background_import(anime_ids: list, chars_limit: int, filter_gender: str, download_images: bool):
     """Импорт в отдельном потоке"""
     try:
-        reset_import_state()
-
-        with IMPORT_LOCK:
-            IMPORT_STATE["total"] = len(anime_ids)
-
         add_log(f"🚀 Начинаем импорт {len(anime_ids)} аниме")
         add_log(f"⚙️ Настройки: {chars_limit} персонажей, пол={filter_gender or 'все'}, картинки={download_images}")
 
@@ -890,6 +956,9 @@ def background_import(anime_ids: list, chars_limit: int, filter_gender: str, dow
         total_skipped = 0
 
         for i, anime_id in enumerate(anime_ids, 1):
+            if IMPORT_STOP_EVENT.is_set():
+                break
+
             # Получаем инфо об аниме
             gql = """
             query ($id: Int) {
@@ -926,13 +995,18 @@ def background_import(anime_ids: list, chars_limit: int, filter_gender: str, dow
 
             total_added += added
 
+        stopped = IMPORT_STOP_EVENT.is_set()
         with IMPORT_LOCK:
-            IMPORT_STATE["progress"] = len(anime_ids)
+            if not stopped:
+                IMPORT_STATE["progress"] = len(anime_ids)
             IMPORT_STATE["added"] = total_added
             IMPORT_STATE["finished"] = True
             IMPORT_STATE["running"] = False
 
-        add_log(f"\n🎉 ГОТОВО! Добавлено {total_added} персонажей")
+        if stopped:
+            add_log(f"\n⏹ Импорт остановлен. Добавлено {total_added} персонажей")
+        else:
+            add_log(f"\n🎉 ГОТОВО! Добавлено {total_added} персонажей")
 
     except Exception as e:
         add_log(f"❌ ОШИБКА: {e}")
@@ -999,6 +1073,8 @@ def import_anime_with_logs(anime_data, chars_limit, download_images, filter_gend
         skipped_duplicate = 0
 
         for i, edge in enumerate(edges, 1):
+            if IMPORT_STOP_EVENT.is_set():
+                break
             char = edge["node"]
             role = edge["role"]
             name_en = char["name"]["full"]
@@ -1190,6 +1266,11 @@ async def admin_import_start(data: dict, _: bool = Depends(verify_admin)):
     if not anime_ids:
         raise HTTPException(400, "Не выбраны аниме")
 
+    # Сбрасываем состояние до запуска потока, чтобы stop не потерялся при старте.
+    reset_import_state()
+    with IMPORT_LOCK:
+        IMPORT_STATE["total"] = len(anime_ids)
+
     # Запускаем в фоне
     thread = threading.Thread(
         target=background_import,
@@ -1211,9 +1292,8 @@ async def admin_import_status(_: bool = Depends(verify_admin)):
 @app.post("/api/admin/import/stop")
 async def admin_import_stop(_: bool = Depends(verify_admin)):
     """Остановить импорт (флаг)"""
-    with IMPORT_LOCK:
-        IMPORT_STATE["running"] = False
-    return {"success": True}
+    IMPORT_STOP_EVENT.set()
+    return {"success": True, "message": "Остановка запрошена"}
 
 
 @app.get("/api/admin/import/top")

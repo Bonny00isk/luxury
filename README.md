@@ -5,8 +5,8 @@ Telegram-бот для коллекционирования аниме-карт�
 ## Установка
 
 ```bash
-git clone https://github.com/GamerMax1254/anime-cards-bot
-cd anime-cards-bot
+git clone https://github.com/Bonny00isk/luxury
+cd luxury
 
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
@@ -19,8 +19,7 @@ pip install -r requirements.txt
 cp .env.example .env
 # Открой .env и заполни:
 # BOT_TOKEN — НОВЫЙ токен от @BotFather
-# ADMIN_ID=7694677506
-# ADMIN_KEY — длинный случайный секретный ключ
+# ADMIN_ID — Telegram ID владельца админ-панели
 # WEBAPP_URL — публичный HTTPS-адрес Mini App
 
 # Запуск ngrok (в отдельном терминале)
@@ -50,10 +49,12 @@ python run.py
 
 ## Настройки доступа
 
-Владелец админ-панели: Telegram ID `7694677506`.
-Открывай панель командой `/admin` в личном чате с ботом. Секретный `ADMIN_KEY`
-передаётся в ссылке админ-панели; не пересылай эту ссылку другим людям.
+В Render добавь переменные окружения `BOT_TOKEN`, `ADMIN_ID` и `WEBAPP_URL`.
+Локально их можно хранить в файле `.env`; этот файл не должен попадать в Git.
 
-Секреты хранятся в `.env`, который исключён из Git. Не добавляй `.env` в репозиторий.
-Если токен бота когда-либо публиковался или отправлялся в общий чат, отзови его
-через @BotFather и используй новый.
+Веб-админка открывается командой `/admin` в личном чате с ботом. Доступ
+проверяется сервером по подписи Telegram Mini App `initData`; ключи и токены
+не передаются в URL или frontend-код.
+
+Не добавляй реальные секреты в репозиторий. Если токен бота публиковался,
+отзови его через @BotFather и установи новый в переменных окружения.
