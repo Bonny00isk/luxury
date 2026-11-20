@@ -1293,9 +1293,7 @@ async def admin_import_status(_: bool = Depends(verify_admin)):
 async def admin_import_stop(_: bool = Depends(verify_admin)):
     """Остановить импорт (флаг)"""
     IMPORT_STOP_EVENT.set()
-    with IMPORT_LOCK:
-        IMPORT_STATE["running"] = False
-    return {"success": True}
+    return {"success": True, "message": "Остановка запрошена"}
 
 
 @app.get("/api/admin/import/top")
